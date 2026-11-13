@@ -36,9 +36,9 @@
           "media_player": "Drive the outputs only while this media player is playing. Leave empty to react whenever packets arrive.",
           "lights": "Lights that follow the music.",
           "light_mode": "How the lights share the audio.",
-          "light_hue_start": "Hue (0-360) for the lowest frequencies: 0 red, 60 yellow, 120 green, 180 cyan, 240 blue, 300 magenta.",
-          "light_hue_end": "Hue (0-360) for the highest frequencies. Equal to the bass colour gives one colour; 0 to 360 the whole wheel.",
-          "light_hue_reverse": "Off: from the bass colour upwards (red towards yellow, green, blue). On: downwards (red towards magenta, blue, green).",
+          "light_hue_start": "Colour for the lowest frequencies. Only its hue is used; lights always get full saturation.",
+          "light_hue_end": "Colour for the highest frequencies. The same colour as for bass goes once round the whole colour wheel.",
+          "light_hue_reverse": "Off: from the bass colour upwards round the colour wheel (red towards yellow, green, blue). On: downwards (red towards magenta, blue, green).",
           "min_brightness": "Light brightness at silence.",
           "max_brightness": "Light brightness at full volume.",
           "update_rate": "Light commands per second. Each command uses a transition as long as the interval.",
@@ -50,8 +50,8 @@
           "hyperion_token": "Only if Hyperion requires API authentication: a token created in Hyperion's web interface.",
           "hyperion_priority": "Lower numbers win. 150 is above screen capture (230-250) and below Home Assistant's Hyperion integration (128).",
           "hyperion_layout": "Where the frequency bands appear around the screen.",
-          "hyperion_hue_start": "Hue (0-360) for the lowest frequencies in the Hyperion picture.",
-          "hyperion_hue_end": "Hue (0-360) for the highest frequencies in the Hyperion picture.",
+          "hyperion_hue_start": "Colour for the lowest frequencies in the Hyperion picture. Only its hue is used.",
+          "hyperion_hue_end": "Colour for the highest frequencies in the Hyperion picture.",
           "hyperion_hue_reverse": "Off: from the bass colour upwards round the wheel. On: downwards."
         }
       },
@@ -75,7 +75,8 @@
       "invalid_auth": "Hyperion refused the token, or requires one.",
       "hyperion_error": "Hyperion returned an error; see the log.",
       "no_instances": "Hyperion has no instances.",
-      "no_instance_chosen": "Choose at least one instance."
+      "no_instance_chosen": "Choose at least one instance.",
+      "grey_colour": "Choose a colour, not white, grey or black: only the colour's hue is used."
     }
   },
   "options": {
@@ -114,9 +115,9 @@
           "media_player": "Drive the outputs only while this media player is playing. Leave empty to react whenever packets arrive.",
           "lights": "Lights that follow the music.",
           "light_mode": "How the lights share the audio.",
-          "light_hue_start": "Hue (0-360) for the lowest frequencies: 0 red, 60 yellow, 120 green, 180 cyan, 240 blue, 300 magenta.",
-          "light_hue_end": "Hue (0-360) for the highest frequencies. Equal to the bass colour gives one colour; 0 to 360 the whole wheel.",
-          "light_hue_reverse": "Off: from the bass colour upwards (red towards yellow, green, blue). On: downwards (red towards magenta, blue, green).",
+          "light_hue_start": "Colour for the lowest frequencies. Only its hue is used; lights always get full saturation.",
+          "light_hue_end": "Colour for the highest frequencies. The same colour as for bass goes once round the whole colour wheel.",
+          "light_hue_reverse": "Off: from the bass colour upwards round the colour wheel (red towards yellow, green, blue). On: downwards (red towards magenta, blue, green).",
           "min_brightness": "Light brightness at silence.",
           "max_brightness": "Light brightness at full volume.",
           "update_rate": "Light commands per second. Each command uses a transition as long as the interval.",
@@ -128,8 +129,8 @@
           "hyperion_token": "Only if Hyperion requires API authentication: a token created in Hyperion's web interface.",
           "hyperion_priority": "Lower numbers win. 150 is above screen capture (230-250) and below Home Assistant's Hyperion integration (128).",
           "hyperion_layout": "Where the frequency bands appear around the screen.",
-          "hyperion_hue_start": "Hue (0-360) for the lowest frequencies in the Hyperion picture.",
-          "hyperion_hue_end": "Hue (0-360) for the highest frequencies in the Hyperion picture.",
+          "hyperion_hue_start": "Colour for the lowest frequencies in the Hyperion picture. Only its hue is used.",
+          "hyperion_hue_end": "Colour for the highest frequencies in the Hyperion picture.",
           "hyperion_hue_reverse": "Off: from the bass colour upwards round the wheel. On: downwards."
         }
       },
@@ -153,7 +154,8 @@
       "invalid_auth": "Hyperion refused the token, or requires one.",
       "hyperion_error": "Hyperion returned an error; see the log.",
       "no_instances": "Hyperion has no instances.",
-      "no_instance_chosen": "Choose at least one instance."
+      "no_instance_chosen": "Choose at least one instance.",
+      "grey_colour": "Choose a colour, not white, grey or black: only the colour's hue is used."
     }
   },
   "entity": {

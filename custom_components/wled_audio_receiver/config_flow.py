@@ -14,6 +14,7 @@ from homeassistant.config_entries import (
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.selector import (
     BooleanSelector,
+    ColorRGBSelector,
     EntitySelector,
     EntitySelectorConfig,
     NumberSelector,
@@ -82,6 +83,7 @@ from .hyperion import (
     HyperionInstance,
     async_get_instances,
 )
+from .spectrum import hue_to_rgb, rgb_to_hue
 
 # Shown for the "enter host and port" choice of the server picker.
 MANUAL_LABEL = "Enter host, port and token below"
@@ -96,18 +98,31 @@ def _box(
     return NumberSelector(config)
 
 
-def _hue() -> NumberSelector:
-    return NumberSelector(
-        NumberSelectorConfig(min=0, max=360, step=1, mode=NumberSelectorMode.SLIDER)
-    )
-
-
-def _hue_fields(start: str, end: str, reverse: str) -> dict[vol.Marker, Any]:
+def _colour_fields(start: str, end: str, reverse: str) -> dict[vol.Marker, Any]:
     return {
-        vol.Required(start, default=int(DEFAULT_HUE_START)): _hue(),
-        vol.Required(end, default=int(DEFAULT_HUE_END)): _hue(),
+        vol.Required(start, default=hue_to_rgb(DEFAULT_HUE_START)): ColorRGBSelector(),
+        vol.Required(end, default=hue_to_rgb(DEFAULT_HUE_END)): ColorRGBSelector(),
         vol.Required(reverse, default=DEFAULT_HUE_REVERSE): BooleanSelector(),
     }
+
+
+# The colour options: shown as colour pickers, of which only the hue is used.
+_COLOUR_KEYS = (
+    CONF_LIGHT_HUE_START,
+    CONF_LIGHT_HUE_END,
+    CONF_HYPERION_HUE_START,
+    CONF_HYPERION_HUE_END,
+)
+
+
+def _colours_for_form(values: dict[str, Any]) -> dict[str, Any]:
+    """Show colours stored as hues by earlier versions in the colour pickers."""
+    values = dict(values)
+    for key in _COLOUR_KEYS:
+        value = values.get(key)
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            values[key] = hue_to_rgb(value)
+    return values
 
 
 def _hyperion_servers(hass: HomeAssistant) -> list[ConfigEntry]:
@@ -149,7 +164,7 @@ def _schema(servers: list[ConfigEntry]) -> vol.Schema:
                     mode=SelectSelectorMode.LIST,
                 )
             ),
-            **_hue_fields(CONF_LIGHT_HUE_START, CONF_LIGHT_HUE_END, CONF_LIGHT_HUE_REVERSE),
+            **_colour_fields(CONF_LIGHT_HUE_START, CONF_LIGHT_HUE_END, CONF_LIGHT_HUE_REVERSE),
             vol.Required(CONF_MIN_BRIGHTNESS, default=DEFAULT_MIN_BRIGHTNESS): _box(
                 0, 100, unit="%"
             ),
@@ -173,7 +188,7 @@ def _schema(servers: list[ConfigEntry]) -> vol.Schema:
                     mode=SelectSelectorMode.LIST,
                 )
             ),
-            **_hue_fields(
+            **_colour_fields(
                 CONF_HYPERION_HUE_START, CONF_HYPERION_HUE_END, CONF_HYPERION_HUE_REVERSE
             ),
         }
@@ -195,16 +210,14 @@ def _normalise(user_input: dict[str, Any], servers: list[ConfigEntry]) -> dict[s
         CONF_MAX_BRIGHTNESS,
         CONF_HYPERION_PORT,
         CONF_HYPERION_PRIORITY,
-        CONF_LIGHT_HUE_START,
-        CONF_LIGHT_HUE_END,
-        CONF_HYPERION_HUE_START,
-        CONF_HYPERION_HUE_END,
     ):
         data[key] = int(data[key])
     data[CONF_UPDATE_RATE] = float(data[CONF_UPDATE_RATE])
     for key in (CONF_SENDER, CONF_HYPERION_HOST, CONF_HYPERION_TOKEN):
         data[key] = (data.get(key) or "").strip()
     data[CONF_MEDIA_PLAYER] = data.get(CONF_MEDIA_PLAYER) or None
+    for key in _COLOUR_KEYS:
+        data[key] = [int(c) for c in data[key]]
     data[CONF_LIGHTS] = list(data.get(CONF_LIGHTS) or [])
     data[CONF_HYPERION_INSTANCES] = list(data.get(CONF_HYPERION_INSTANCES) or [])
     return data
@@ -221,6 +234,9 @@ def _validate(data: dict[str, Any], ports_in_use: set[int]) -> dict[str, str]:
             errors[CONF_SENDER] = "invalid_sender"
     if data[CONF_MIN_BRIGHTNESS] > data[CONF_MAX_BRIGHTNESS]:
         errors[CONF_MIN_BRIGHTNESS] = "min_above_max"
+    for key in _COLOUR_KEYS:
+        if rgb_to_hue(data[key]) is None:
+            errors[key] = "grey_colour"
     if data[CONF_HYPERION] and not data[CONF_HYPERION_HOST]:
         errors[CONF_HYPERION_HOST] = "hyperion_host_required"
     return errors
@@ -251,7 +267,7 @@ class _FlowSteps:
         self, step_id: str, values: dict[str, Any], errors: dict[str, str]
     ) -> ConfigFlowResult:
         servers = _hyperion_servers(self.hass)
-        values = dict(values)
+        values = _colours_for_form(values)
         if servers and CONF_HYPERION_SERVER not in values and values.get(CONF_HYPERION_HOST):
             values[CONF_HYPERION_SERVER] = _server_for(
                 servers,
