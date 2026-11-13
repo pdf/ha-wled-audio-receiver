@@ -20,9 +20,9 @@ from .const import (
     HYPERION_LAYOUT_FOUR_WAY,
     HYPERION_LAYOUTS,
     HYPERION_ORIGIN,
-    SPECTRUM_HUE_END,
 )
 from .receiver import SyncPacket
+from .spectrum import HueRange
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -95,17 +95,29 @@ def _channel_map(layout: str) -> list[list[int]]:
 
 CHANNEL_MAPS = {layout: _channel_map(layout) for layout in HYPERION_LAYOUTS}
 
-CHANNEL_RGB = [
-    colorsys.hsv_to_rgb(SPECTRUM_HUE_END * c / (CHANNELS - 1) / 360, 1.0, 1.0)
-    for c in range(CHANNELS)
-]
+Colours = list[tuple[float, float, float]]
 
 
-def render(fft_result: tuple[int, ...], layout: str = DEFAULT_HYPERION_LAYOUT) -> bytes:
+def channel_colours(hues: HueRange) -> Colours:
+    """Return each channel's full-brightness RGB (0-1) along a colour range."""
+    return [
+        colorsys.hsv_to_rgb(hues.at(c / (CHANNELS - 1)) / 360, 1.0, 1.0) for c in range(CHANNELS)
+    ]
+
+
+DEFAULT_COLOURS = channel_colours(HueRange())
+
+
+def render(
+    fft_result: tuple[int, ...],
+    layout: str = DEFAULT_HYPERION_LAYOUT,
+    colours_rgb: Colours | None = None,
+) -> bytes:
     """Render the 16 channels as a WIDTH x HEIGHT RGB image in a layout."""
+    rgb = colours_rgb or DEFAULT_COLOURS
     colours = []
     for c in range(CHANNELS):
-        r, g, b = CHANNEL_RGB[c]
+        r, g, b = rgb[c]
         v = fft_result[c]
         colours.append(bytes((round(r * v), round(g * v), round(b * v))))
     return b"".join(colours[c] for row in CHANNEL_MAPS[layout] for c in row)
@@ -116,6 +128,7 @@ def image_command(
     priority: int,
     layout: str = DEFAULT_HYPERION_LAYOUT,
     instances: list[int] | None = None,
+    colours_rgb: Colours | None = None,
 ) -> dict[str, object]:
     """Build Hyperion's image command for one frame.
 
@@ -125,7 +138,7 @@ def image_command(
         "command": "image",
         "imagewidth": WIDTH,
         "imageheight": HEIGHT,
-        "imagedata": base64.b64encode(render(fft_result, layout)).decode("ascii"),
+        "imagedata": base64.b64encode(render(fft_result, layout, colours_rgb)).decode("ascii"),
         "priority": priority,
         "origin": HYPERION_ORIGIN,
         "duration": HYPERION_DURATION_MS,
@@ -240,10 +253,12 @@ class HyperionOutput:
         layout: str = DEFAULT_HYPERION_LAYOUT,
         token: str | None = None,
         instances: list[int] | None = None,
+        hues: HueRange | None = None,
     ) -> None:
         """Initialise; call async_start to connect."""
         self._hass = hass
         self._layout = layout
+        self._colours = channel_colours(hues or HueRange())
         self._token = token or None
         self._instances = list(instances or [])
         self._host = host
@@ -297,7 +312,9 @@ class HyperionOutput:
         if not self._active:
             return
         if not self._write(
-            image_command(packet.fft_result, self._priority, self._layout, self._instances)
+            image_command(
+                packet.fft_result, self._priority, self._layout, self._instances, self._colours
+            )
         ):
             self.skipped += 1
         else:

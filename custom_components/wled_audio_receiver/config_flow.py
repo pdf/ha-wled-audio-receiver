@@ -32,12 +32,18 @@ import voluptuous as vol
 from .const import (
     CONF_HYPERION,
     CONF_HYPERION_HOST,
+    CONF_HYPERION_HUE_END,
+    CONF_HYPERION_HUE_REVERSE,
+    CONF_HYPERION_HUE_START,
     CONF_HYPERION_INSTANCES,
     CONF_HYPERION_LAYOUT,
     CONF_HYPERION_PORT,
     CONF_HYPERION_PRIORITY,
     CONF_HYPERION_SERVER,
     CONF_HYPERION_TOKEN,
+    CONF_LIGHT_HUE_END,
+    CONF_LIGHT_HUE_REVERSE,
+    CONF_LIGHT_HUE_START,
     CONF_LIGHT_MODE,
     CONF_LIGHTS,
     CONF_MAX_BRIGHTNESS,
@@ -48,6 +54,9 @@ from .const import (
     CONF_RESTORE,
     CONF_SENDER,
     CONF_UPDATE_RATE,
+    DEFAULT_HUE_END,
+    DEFAULT_HUE_REVERSE,
+    DEFAULT_HUE_START,
     DEFAULT_HYPERION,
     DEFAULT_HYPERION_LAYOUT,
     DEFAULT_HYPERION_PORT,
@@ -85,6 +94,20 @@ def _box(
     if unit is not None:
         config["unit_of_measurement"] = unit
     return NumberSelector(config)
+
+
+def _hue() -> NumberSelector:
+    return NumberSelector(
+        NumberSelectorConfig(min=0, max=360, step=1, mode=NumberSelectorMode.SLIDER)
+    )
+
+
+def _hue_fields(start: str, end: str, reverse: str) -> dict[vol.Marker, Any]:
+    return {
+        vol.Required(start, default=int(DEFAULT_HUE_START)): _hue(),
+        vol.Required(end, default=int(DEFAULT_HUE_END)): _hue(),
+        vol.Required(reverse, default=DEFAULT_HUE_REVERSE): BooleanSelector(),
+    }
 
 
 def _hyperion_servers(hass: HomeAssistant) -> list[ConfigEntry]:
@@ -126,6 +149,7 @@ def _schema(servers: list[ConfigEntry]) -> vol.Schema:
                     mode=SelectSelectorMode.LIST,
                 )
             ),
+            **_hue_fields(CONF_LIGHT_HUE_START, CONF_LIGHT_HUE_END, CONF_LIGHT_HUE_REVERSE),
             vol.Required(CONF_MIN_BRIGHTNESS, default=DEFAULT_MIN_BRIGHTNESS): _box(
                 0, 100, unit="%"
             ),
@@ -149,6 +173,9 @@ def _schema(servers: list[ConfigEntry]) -> vol.Schema:
                     mode=SelectSelectorMode.LIST,
                 )
             ),
+            **_hue_fields(
+                CONF_HYPERION_HUE_START, CONF_HYPERION_HUE_END, CONF_HYPERION_HUE_REVERSE
+            ),
         }
     )
 
@@ -168,6 +195,10 @@ def _normalise(user_input: dict[str, Any], servers: list[ConfigEntry]) -> dict[s
         CONF_MAX_BRIGHTNESS,
         CONF_HYPERION_PORT,
         CONF_HYPERION_PRIORITY,
+        CONF_LIGHT_HUE_START,
+        CONF_LIGHT_HUE_END,
+        CONF_HYPERION_HUE_START,
+        CONF_HYPERION_HUE_END,
     ):
         data[key] = int(data[key])
     data[CONF_UPDATE_RATE] = float(data[CONF_UPDATE_RATE])

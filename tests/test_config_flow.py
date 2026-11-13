@@ -27,6 +27,12 @@ DEFAULTS = {
     "hyperion_port": 19444,
     "hyperion_priority": 150,
     "hyperion_layout": "bottom_up",
+    "light_hue_start": 0,
+    "light_hue_end": 270,
+    "light_hue_reverse": False,
+    "hyperion_hue_start": 0,
+    "hyperion_hue_end": 270,
+    "hyperion_hue_reverse": False,
 }
 
 
@@ -98,6 +104,11 @@ async def test_user_flow_full(
             "hyperion_port": float(hyperion.port),
             "hyperion_priority": 120.0,
             "hyperion_layout": "four_way",
+            "light_hue_start": 300.0,
+            "light_hue_end": 60.0,
+            "hyperion_hue_start": 240.0,
+            "hyperion_hue_end": 0.0,
+            "hyperion_hue_reverse": True,
         },
     )
     assert result["type"] is FlowResultType.FORM
@@ -110,6 +121,9 @@ async def test_user_flow_full(
     assert result["type"] is FlowResultType.CREATE_ENTRY
     options = result["options"]
     assert options["hyperion_instances"] == [0, 1]
+    assert options["light_hue_start"] == 300 and isinstance(options["light_hue_start"], int)
+    assert options["light_hue_end"] == 60
+    assert options["hyperion_hue_reverse"] is True
     assert options["hyperion_port"] == hyperion.port
     assert "hyperion_server" not in options
     assert options["port"] == 12000 and isinstance(options["port"], int)
