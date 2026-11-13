@@ -27,11 +27,11 @@ DEFAULTS = {
     "hyperion_port": 19444,
     "hyperion_priority": 150,
     "hyperion_layout": "bottom_up",
-    "light_hue_start": 0,
-    "light_hue_end": 270,
+    "light_hue_start": [255, 0, 0],
+    "light_hue_end": [128, 0, 255],
     "light_hue_reverse": False,
-    "hyperion_hue_start": 0,
-    "hyperion_hue_end": 270,
+    "hyperion_hue_start": [255, 0, 0],
+    "hyperion_hue_end": [128, 0, 255],
     "hyperion_hue_reverse": False,
 }
 
@@ -104,10 +104,10 @@ async def test_user_flow_full(
             "hyperion_port": float(hyperion.port),
             "hyperion_priority": 120.0,
             "hyperion_layout": "four_way",
-            "light_hue_start": 300.0,
-            "light_hue_end": 60.0,
-            "hyperion_hue_start": 240.0,
-            "hyperion_hue_end": 0.0,
+            "light_hue_start": [255, 0, 255],
+            "light_hue_end": [255, 255, 0],
+            "hyperion_hue_start": [0, 0, 255],
+            "hyperion_hue_end": [255, 0, 0],
             "hyperion_hue_reverse": True,
         },
     )
@@ -121,8 +121,8 @@ async def test_user_flow_full(
     assert result["type"] is FlowResultType.CREATE_ENTRY
     options = result["options"]
     assert options["hyperion_instances"] == [0, 1]
-    assert options["light_hue_start"] == 300 and isinstance(options["light_hue_start"], int)
-    assert options["light_hue_end"] == 60
+    assert options["light_hue_start"] == [255, 0, 255]
+    assert options["light_hue_end"] == [255, 255, 0]
     assert options["hyperion_hue_reverse"] is True
     assert options["hyperion_port"] == hyperion.port
     assert "hyperion_server" not in options
@@ -395,3 +395,35 @@ async def test_options_flow_hyperion(
     assert result["type"] is FlowResultType.CREATE_ENTRY
     await hass.async_block_till_done()
     assert runtime.entry.options["hyperion_instances"] == [0, 1]
+
+
+@pytest.mark.parametrize("key", ["light_hue_start", "hyperion_hue_end"])
+@pytest.mark.parametrize("grey", [[255, 255, 255], [128, 128, 128], [0, 0, 0]])
+async def test_grey_colour_refused(
+    hass: HomeAssistant, receiver: FakeReceiver, key: str, grey: list[int]
+) -> None:
+    """White, grey and black have no hue and are refused."""
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {**DEFAULTS, key: grey}
+    )
+    assert result["errors"] == {key: "grey_colour"}
+
+
+async def test_colour_pickers(hass: HomeAssistant, receiver: FakeReceiver) -> None:
+    """The colour range fields are colour pickers."""
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
+    fields = {str(k): v for k, v in result["data_schema"].schema.items()}
+    for key in ("light_hue_start", "light_hue_end", "hyperion_hue_start", "hyperion_hue_end"):
+        assert fields[key].serialize() == {"selector": {"color_rgb": {}}}
+
+
+async def test_options_flow_shows_hues_as_colours(
+    hass: HomeAssistant, setup_entry, receiver: FakeReceiver
+) -> None:
+    """Hues stored by earlier versions show as their colours in the pickers."""
+    legacy = {**DEFAULTS, "light_hue_start": 240, "light_hue_end": 60}
+    runtime = await setup_entry(**legacy)
+    result = await hass.config_entries.options.async_init(runtime.entry.entry_id)
+    assert _suggested(result, "light_hue_start") == [0, 0, 255]
+    assert _suggested(result, "light_hue_end") == [255, 255, 0]

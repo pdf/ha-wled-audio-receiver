@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import colorsys
 from dataclasses import dataclass
 from typing import Any
 
@@ -18,7 +19,7 @@ class HueRange:
 
     Without reverse the path runs upwards (red, yellow, green, blue, violet),
     wrapping past 360; with reverse it runs downwards. Equal start and end
-    give one colour; start 0 and end 360 give the whole wheel.
+    hues (0 and 360 included) give the whole wheel, starting and ending there.
     """
 
     start: float = DEFAULT_HUE_START
@@ -30,9 +31,8 @@ class HueRange:
         """Return the length of the path in degrees, 0-360."""
         diff = (self.start - self.end) if self.reverse else (self.end - self.start)
         span = diff % 360
-        if span == 0 and self.start % 360 == self.end % 360 and self.start != self.end:
-            return 360.0
-        return span
+        # The same hue at both ends: once round the whole wheel.
+        return 360.0 if span == 0 else span
 
     def at(self, position: float) -> float:
         """Return the hue at a position from 0 (bass) to 1 (treble)."""
@@ -45,7 +45,31 @@ class HueRange:
     ) -> HueRange:
         """Build a range from config entry options, with defaults."""
         return cls(
-            float(options.get(start_key, DEFAULT_HUE_START)),
-            float(options.get(end_key, DEFAULT_HUE_END)),
+            option_hue(options.get(start_key), DEFAULT_HUE_START),
+            option_hue(options.get(end_key), DEFAULT_HUE_END),
             bool(options.get(reverse_key, DEFAULT_HUE_REVERSE)),
         )
+
+
+def rgb_to_hue(rgb: list[int] | tuple[int, ...]) -> float | None:
+    """Return the hue of an RGB colour in whole degrees, or None for greys."""
+    r, g, b = (c / 255 for c in rgb)
+    hue, saturation, _ = colorsys.rgb_to_hsv(r, g, b)
+    if saturation == 0:
+        return None
+    return float(round(hue * 360) % 360)
+
+
+def hue_to_rgb(hue: float) -> list[int]:
+    """Return the fully saturated, full brightness RGB colour of a hue."""
+    return [round(c * 255) for c in colorsys.hsv_to_rgb((hue % 360) / 360, 1.0, 1.0)]
+
+
+def option_hue(value: Any, default: float) -> float:
+    """Read a stored colour option: an RGB list, or a hue (as stored by earlier versions)."""
+    if isinstance(value, (list, tuple)) and len(value) == 3:
+        hue = rgb_to_hue(value)
+        return default if hue is None else hue
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return float(value)
+    return default

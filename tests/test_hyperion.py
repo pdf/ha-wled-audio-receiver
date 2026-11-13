@@ -392,12 +392,12 @@ async def test_hyperion_range_option_used(
         hyperion=True,
         hyperion_host="127.0.0.1",
         hyperion_port=hyperion.port,
-        hyperion_hue_start=120,
-        hyperion_hue_end=120,
+        hyperion_hue_start=[0, 255, 0],
+        hyperion_hue_end=[0, 0, 255],
     )
     await _wait_connected(runtime)
     fft = tuple([200] * 16)
     receiver.feed(fft=list(fft))
     command = await hyperion.next()
-    expected = render(fft, "bottom_up", channel_colours(HueRange(120, 120)))
+    expected = render(fft, "bottom_up", channel_colours(HueRange(120, 240)))
     assert base64.b64decode(command["imagedata"]) == expected

@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import pytest
 
-from custom_components.wled_audio_receiver.spectrum import HueRange
+from custom_components.wled_audio_receiver.spectrum import (
+    HueRange,
+    hue_to_rgb,
+    option_hue,
+    rgb_to_hue,
+)
 
 
 def test_default_range() -> None:
@@ -28,9 +33,12 @@ def test_default_range() -> None:
         # The whole wheel.
         (HueRange(0, 360), {0: 0, 0.25: 90, 0.5: 180, 1: 0}),
         (HueRange(0, 360, reverse=True), {0: 0, 0.25: 270, 0.5: 180}),
-        # One colour.
-        (HueRange(200, 200), {0: 200, 0.5: 200, 1: 200}),
-        (HueRange(200, 200, reverse=True), {0: 200, 1: 200}),
+        # The same colour at both ends: the whole wheel, from and back to it.
+        (HueRange(200, 200), {0: 200, 0.25: 290, 0.5: 20, 1: 200}),
+        (HueRange(200, 200, reverse=True), {0: 200, 0.25: 110, 0.5: 20, 1: 200}),
+        (HueRange(0, 0), {0: 0, 0.5: 180}),
+        # Nearly the same colours: (nearly) one colour.
+        (HueRange(200, 201), {0: 200, 0.5: 200.5, 1: 201}),
     ],
 )
 def test_range_paths(hues: HueRange, positions: dict[float, float]) -> None:
@@ -44,3 +52,46 @@ def test_from_options() -> None:
     keys = ("a", "b", "c")
     assert HueRange.from_options({}, *keys) == HueRange()
     assert HueRange.from_options({"a": 10, "b": 20, "c": True}, *keys) == HueRange(10, 20, True)
+
+
+@pytest.mark.parametrize(
+    ("rgb", "hue"),
+    [
+        ([255, 0, 0], 0),
+        ([255, 255, 0], 60),
+        ([0, 255, 0], 120),
+        ([0, 0, 255], 240),
+        ([255, 0, 255], 300),
+        ([128, 0, 255], 270),  # the default treble colour
+        ([64, 0, 0], 0),  # dark and pale colours keep their hue
+        ([255, 200, 200], 0),
+        ([255, 255, 255], None),
+        ([0, 0, 0], None),
+    ],
+)
+def test_rgb_to_hue(rgb: list[int], hue: float | None) -> None:
+    """Only the hue of a picked colour is used; greys have none."""
+    assert rgb_to_hue(rgb) == hue
+
+
+def test_hue_to_rgb_round_trip() -> None:
+    """Whole-degree hues survive a round trip through the colour picker."""
+    for hue in range(0, 360, 5):
+        assert rgb_to_hue(hue_to_rgb(hue)) == hue
+
+
+def test_option_hue() -> None:
+    """Stored colours are RGB lists; hues stored by earlier versions still work."""
+    assert option_hue([0, 0, 255], 0) == 240
+    assert option_hue(200, 0) == 200
+    assert option_hue(None, 270) == 270
+    assert option_hue([10, 10, 10], 270) == 270  # grey: default
+    assert option_hue(True, 270) == 270
+
+
+def test_same_picked_colour_is_whole_wheel() -> None:
+    """Picking the same colour for bass and treble gives the whole wheel."""
+    keys = ("a", "b", "c")
+    hues = HueRange.from_options({"a": [255, 0, 0], "b": [255, 0, 0]}, *keys)
+    assert hues.span == 360
+    assert hues.at(0.5) == pytest.approx(180)

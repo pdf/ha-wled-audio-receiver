@@ -61,7 +61,7 @@ Everything is set in the UI. The same fields are available later under the integ
 | Media player | none | Drive the outputs only while this media player is `playing`. Empty: react whenever packets arrive. |
 | Lights | none | Lights that follow the music. In split mode, the order you select them in is the order from bass to treble. |
 | Light mode | Mix | Mix: every light follows the whole mix. Split: the frequency bands are divided among the lights. See [Lights](#lights). |
-| Split mode: bass / treble colour, other way round | 0 / 270, off | The colour range for split mode, as hues (0 red, 60 yellow, 120 green, 180 cyan, 240 blue, 300 magenta). See [Colour ranges](#colour-ranges). |
+| Split mode: bass / treble colour, other way round | red / violet, off | The colour range for split mode, picked with colour pickers. See [Colour ranges](#colour-ranges). |
 | Minimum / maximum brightness | 10 % / 100 % | Light brightness at silence and at full volume. |
 | Light update rate | 3 per second | Light commands per second; each uses a transition as long as the interval. |
 | Restore lights afterwards | off | Snapshot the lights when music starts and restore them when it stops. |
@@ -70,7 +70,7 @@ Everything is set in the UI. The same fields are available later under the integ
 | Hyperion host / port | - / 19444 | Hyperion's JSON API, when entered by hand. |
 | Hyperion token | empty | Only if Hyperion requires API authentication: a token created in Hyperion's web interface. |
 | Hyperion layout | Bottom to top | Where the bands appear around the screen. See [Hyperion](#hyperion). |
-| Hyperion bass / treble colour, other way round | 0 / 270, off | The colour range for the Hyperion picture, set separately from the lights. See [Colour ranges](#colour-ranges). |
+| Hyperion bass / treble colour, other way round | red / violet, off | The colour range for the Hyperion picture, set separately from the lights. See [Colour ranges](#colour-ranges). |
 | Hyperion priority | 150 | Lower wins. 150 is above screen capture (230-250) and below Home Assistant's Hyperion integration (128), so a colour set by hand still wins. |
 
 With Hyperion turned on, the integration connects to the server when you save, and a second page lists its instances (each LED setup Hyperion drives) so you can choose which show the music. The first running instance is preselected. If Hyperion can't be reached or refuses the token, the form says so; turn Hyperion off to save without it.
@@ -126,13 +126,13 @@ If Home Assistant stops, Hyperion falls back to its capture within half a second
 
 ## Colour ranges
 
-Split mode and the Hyperion picture each map the frequency bands onto a colour range, set separately in the options. A range is a path round the colour wheel from the bass colour to the treble colour, both given as hues from 0 to 360 (0 red, 60 yellow, 120 green, 180 cyan, 240 blue, 300 magenta).
+Split mode and the Hyperion picture each map the frequency bands onto a colour range, set separately in the options. A range is a path round the colour wheel from the bass colour to the treble colour, both picked with colour pickers. Only each colour's hue counts: a pale or dark colour gives the same result as the fully saturated one (lights always get full saturation), and white, grey and black are refused because they have no hue.
 
-- By default the path goes upwards round the wheel: from 300 to 60 runs magenta, red, orange, yellow.
-- "Other way round" makes it go downwards: from 300 to 60 then runs magenta, blue, cyan, green, yellow.
-- The same colour for bass and treble gives one colour throughout; 0 to 360 gives the whole wheel.
+- By default the path goes upwards round the wheel (red, yellow, green, cyan, blue, magenta, back to red): from magenta to yellow runs magenta, red, orange, yellow.
+- "Other way round" makes it go downwards: from magenta to yellow then runs magenta, blue, cyan, green, yellow.
+- The same colour for bass and treble goes once round the whole wheel, starting and ending at that colour. For one colour throughout, pick two nearly identical colours.
 
-The default, 0 to 270 upwards, is red, yellow, green, cyan, blue, violet. Mix mode doesn't use a range: it blends red, green and blue by the balance of bass, mids and treble.
+The default, red to violet upwards, is red, yellow, green, cyan, blue, violet. Mix mode doesn't use a range: it blends red, green and blue by the balance of bass, mids and treble.
 
 ## Troubleshooting
 
