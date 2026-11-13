@@ -35,6 +35,7 @@ from .const import (
     CONF_MULTICAST,
     CONF_PORT,
     CONF_RESTORE,
+    CONF_SEND_TO_LIGHTS,
     CONF_SENDER,
     CONF_UPDATE_RATE,
     DEFAULT_HYPERION,
@@ -47,6 +48,7 @@ from .const import (
     DEFAULT_MULTICAST,
     DEFAULT_PORT,
     DEFAULT_RESTORE,
+    DEFAULT_SEND_TO_LIGHTS,
     DEFAULT_UPDATE_RATE,
 )
 from .gate import Gate
@@ -87,7 +89,9 @@ class WledAudioReceiver:
         self.lights = LightOutput(
             self.hass,
             self.entry.entry_id,
-            options.get(CONF_LIGHTS) or [],
+            (options.get(CONF_LIGHTS) or [])
+            if options.get(CONF_SEND_TO_LIGHTS, DEFAULT_SEND_TO_LIGHTS)
+            else [],
             options.get(CONF_MIN_BRIGHTNESS, DEFAULT_MIN_BRIGHTNESS),
             options.get(CONF_MAX_BRIGHTNESS, DEFAULT_MAX_BRIGHTNESS),
             options.get(CONF_UPDATE_RATE, DEFAULT_UPDATE_RATE),
