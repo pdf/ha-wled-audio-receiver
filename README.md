@@ -11,7 +11,7 @@ This is an unofficial receiver for WLED's audio sync protocol. It is not part of
 WLED's audio-reactive usermod analyses sound (volume, peaks and 16 frequency bands) and can share that analysis with other devices as small UDP packets, about 43 per second. This integration listens for those packets and, while music is playing:
 
 - sets the brightness and colour of the lights you choose, a few times per second: either every light follows the whole mix, or each light takes its own part of the spectrum;
-- sends a small image to a Hyperion.NG server, so an ambilight shows the 16 frequency bands around the screen, from bass at the bottom centre to treble at the top centre.
+- sends a small image to a Hyperion.NG server, so an ambilight shows the 16 frequency bands around the screen, in one of two layouts.
 
 ## Senders
 
@@ -66,6 +66,7 @@ Everything is set in the UI. The same fields are available later under the integ
 | Restore lights afterwards | off | Snapshot the lights when music starts and restore them when it stops. |
 | Send to Hyperion | off | Send the frequency bands to Hyperion.NG. |
 | Hyperion host / port | - / 19444 | Hyperion's JSON API. |
+| Hyperion layout | Bottom to top | Where the bands appear around the screen. See [Hyperion](#hyperion). |
 | Hyperion priority | 150 | Lower wins. 150 is above screen capture (230-250) and below Home Assistant's Hyperion integration (128), so a colour set by hand still wins. |
 
 ### The "Music reactive" switch
@@ -106,7 +107,14 @@ Changes smaller than 3 brightness points and 10 degrees of hue are not sent. Eac
 
 ## Hyperion
 
-The integration keeps one connection to Hyperion's JSON API and sends a 16 x 9 pixel image for every packet, with a duration of 500 ms. Hyperion scales the image onto your LED layout, so no layout needs to be configured here. If Home Assistant stops, Hyperion falls back to its capture within half a second. In Hyperion's list of sources it shows as "WLED Audio Receiver". Commands Hyperion rejects are logged as warnings, at most once a minute.
+The integration keeps one connection to Hyperion's JSON API and sends a 32 x 18 pixel image for every packet, with a duration of 500 ms. Hyperion scales the image onto your LED layout, so no LED layout needs to be configured here.
+
+The 16 frequency bands run along the edges of the image, each in its own colour from red (bass) to violet (treble), with its brightness following its level. The layout decides where they go:
+
+- **Bottom to top** (default): bass at the bottom centre, rising up both sides to treble at the top centre. Left and right are mirror images.
+- **Sides to top and bottom**: bass at the middle of the left and right sides, rising up to the top corners and along the top to treble at the top centre, and the same downwards to the bottom centre. Mirrored four ways, so each quarter of the frame shows the whole spectrum.
+
+If Home Assistant stops, Hyperion falls back to its capture within half a second. In Hyperion's list of sources it shows as "WLED Audio Receiver". Commands Hyperion rejects are logged as warnings, at most once a minute.
 
 ## Troubleshooting
 
