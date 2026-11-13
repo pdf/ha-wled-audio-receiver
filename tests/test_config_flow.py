@@ -18,6 +18,7 @@ from .fake_hyperion import TOKEN, FakeHyperion
 DEFAULTS = {
     "port": 11988,
     "multicast": True,
+    "send_to_lights": True,
     "light_mode": "mix",
     "min_brightness": 10,
     "max_brightness": 100,
@@ -427,3 +428,29 @@ async def test_options_flow_shows_hues_as_colours(
     result = await hass.config_entries.options.async_init(runtime.entry.entry_id)
     assert _suggested(result, "light_hue_start") == [0, 0, 255]
     assert _suggested(result, "light_hue_end") == [255, 255, 0]
+
+
+async def test_send_to_lights_off_keeps_lights(
+    hass: HomeAssistant, setup_entry, receiver: FakeReceiver
+) -> None:
+    """Turning "Send to lights" off keeps the chosen lights for later."""
+    runtime = await setup_entry(**DEFAULTS, lights=["light.a", "light.b"])
+    result = await hass.config_entries.options.async_init(runtime.entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {**DEFAULTS, "send_to_lights": False, "lights": ["light.a", "light.b"]}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    await hass.async_block_till_done()
+    entry = runtime.entry
+    assert entry.options["send_to_lights"] is False
+    assert entry.options["lights"] == ["light.a", "light.b"]
+    assert entry.runtime_data.lights.workers == []
+
+    # Turning it back on needs no re-selection.
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert _suggested(result, "lights") == ["light.a", "light.b"]
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {**DEFAULTS, "lights": ["light.a", "light.b"]}
+    )
+    await hass.async_block_till_done()
+    assert [w.entity_id for w in entry.runtime_data.lights.workers] == ["light.a", "light.b"]

@@ -456,3 +456,17 @@ async def test_split_mode_uses_light_range(
     by_light = {c.data["entity_id"]: c.data for c in calls}
     assert by_light["light.low"]["hs_color"] == (240.0, 100)
     assert by_light["light.high"]["hs_color"] == (0.0, 100)
+
+
+async def test_send_to_lights_off(
+    hass: HomeAssistant, setup_entry, receiver: FakeReceiver, freezer: FrozenDateTimeFactory
+) -> None:
+    """With "Send to lights" off, no light or scene commands are sent."""
+    calls = async_mock_service(hass, "light", "turn_on")
+    created = async_mock_service(hass, "scene", "create")
+    runtime = await setup_entry(lights=LIGHTS, send_to_lights=False, restore=True, update_rate=4.0)
+    receiver.feed(sample_smth=200)
+    await _advance(hass, freezer, 0.5)
+    assert runtime.gate.active
+    assert calls == []
+    assert created == []

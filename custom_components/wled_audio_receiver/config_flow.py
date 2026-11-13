@@ -53,6 +53,7 @@ from .const import (
     CONF_MULTICAST,
     CONF_PORT,
     CONF_RESTORE,
+    CONF_SEND_TO_LIGHTS,
     CONF_SENDER,
     CONF_UPDATE_RATE,
     DEFAULT_HUE_END,
@@ -68,6 +69,7 @@ from .const import (
     DEFAULT_MULTICAST,
     DEFAULT_PORT,
     DEFAULT_RESTORE,
+    DEFAULT_SEND_TO_LIGHTS,
     DEFAULT_UPDATE_RATE,
     DOMAIN,
     HYPERION_CORE_DOMAIN,
@@ -154,6 +156,7 @@ def _schema(servers: list[ConfigEntry]) -> vol.Schema:
             vol.Optional(CONF_MEDIA_PLAYER): EntitySelector(
                 EntitySelectorConfig(domain="media_player")
             ),
+            vol.Required(CONF_SEND_TO_LIGHTS, default=DEFAULT_SEND_TO_LIGHTS): BooleanSelector(),
             vol.Optional(CONF_LIGHTS): EntitySelector(
                 EntitySelectorConfig(domain="light", multiple=True)
             ),

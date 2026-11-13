@@ -59,6 +59,7 @@ Everything is set in the UI. The same fields are available later under the integ
 | Join multicast group 239.0.0.1 | on | Receive WLED's default multicast packets. |
 | Sender IP address | empty | Accept packets only from this IPv4 address. Empty accepts any sender. |
 | Media player | none | Drive the outputs only while this media player is `playing`. Empty: react whenever packets arrive. |
+| Send to lights | on | Turn off to pause the lights without removing them from the list; turn on again to resume with the same lights. |
 | Lights | none | Lights that follow the music. In split mode, the order you select them in is the order from bass to treble. |
 | Light mode | Mix | Mix: every light follows the whole mix. Split: the frequency bands are divided among the lights. See [Lights](#lights). |
 | Split mode: bass / treble colour, other way round | red / violet, off | The colour range for split mode, picked with colour pickers. See [Colour ranges](#colour-ranges). |

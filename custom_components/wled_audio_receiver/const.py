@@ -16,6 +16,7 @@ CONF_SENDER: Final = "sender"
 CONF_MEDIA_PLAYER: Final = "media_player"
 
 # Lights
+CONF_SEND_TO_LIGHTS: Final = "send_to_lights"
 CONF_LIGHTS: Final = "lights"
 CONF_LIGHT_MODE: Final = "light_mode"
 CONF_LIGHT_HUE_START: Final = "light_hue_start"
@@ -56,6 +57,7 @@ DEFAULT_MAX_BRIGHTNESS: Final = 100
 DEFAULT_UPDATE_RATE: Final = 3.0
 DEFAULT_RESTORE: Final = False
 DEFAULT_HYPERION: Final = False
+DEFAULT_SEND_TO_LIGHTS: Final = True
 DEFAULT_HYPERION_PORT: Final = 19444
 DEFAULT_HYPERION_PRIORITY: Final = 150
 
