@@ -6,7 +6,6 @@ import asyncio
 from dataclasses import dataclass
 from datetime import timedelta
 import logging
-import math
 
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
@@ -21,15 +20,7 @@ _LOGGER = logging.getLogger(__name__)
 
 CHANNELS = 16
 
-# fftResult channel ranges for the bands (end exclusive).
-BASS = range(0, 4)  # 43-301 Hz
-MID = range(4, 11)  # 301-2412 Hz
-TREBLE = range(11, 16)  # 2412-9259 Hz
-
-# Hues of the band colours: red, green, blue.
-BASS_HUE = 0.0
-MID_HUE = 120.0
-TREBLE_HUE = 240.0
+ALL_CHANNELS = range(CHANNELS)
 
 DEADBAND_BRIGHTNESS = 3
 DEADBAND_HUE = 10.0
@@ -45,12 +36,9 @@ ATTR_TRANSITION = "transition"
 
 @dataclass(frozen=True, slots=True)
 class Bands:
-    """Volume, band and channel levels, each 0-1."""
+    """Volume and the 16 channel levels, each 0-1."""
 
     level: float
-    bass: float
-    mid: float
-    treble: float
     channels: tuple[float, ...] = ()
 
 
@@ -62,19 +50,11 @@ class LightTarget:
     hue: float | None
 
 
-def _mean(values: tuple[int, ...], channels: range) -> float:
-    return sum(values[i] for i in channels) / len(channels) / 255
-
-
 def bands(packet: SyncPacket) -> Bands:
-    """Group one packet into level and bass, mid and treble bands."""
-    fft = packet.fft_result
+    """Scale one packet's volume and channels to 0-1."""
     return Bands(
         level=min(max(packet.sample_smth / 255, 0.0), 1.0),
-        bass=_mean(fft, BASS),
-        mid=_mean(fft, MID),
-        treble=_mean(fft, TREBLE),
-        channels=tuple(v / 255 for v in fft),
+        channels=tuple(v / 255 for v in packet.fft_result),
     )
 
 
@@ -88,7 +68,7 @@ class Averager:
     def clear(self) -> None:
         """Drop the frames collected so far."""
         self._count = 0
-        self._level = self._bass = self._mid = self._treble = 0.0
+        self._level = 0.0
         self._channels = [0.0] * CHANNELS
 
     def add(self, packet: SyncPacket) -> None:
@@ -96,9 +76,6 @@ class Averager:
         b = bands(packet)
         self._count += 1
         self._level += b.level
-        self._bass += b.bass
-        self._mid += b.mid
-        self._treble += b.treble
         for i, v in enumerate(b.channels):
             self._channels[i] += v
 
@@ -107,32 +84,26 @@ class Averager:
         if self._count == 0:
             return None
         n = self._count
-        result = Bands(
-            self._level / n,
-            self._bass / n,
-            self._mid / n,
-            self._treble / n,
-            tuple(v / n for v in self._channels),
-        )
+        result = Bands(self._level / n, tuple(v / n for v in self._channels))
         self.clear()
         return result
 
 
-def hue(b: Bands) -> float | None:
-    """Return the circular mean of the band hues weighted by level, in degrees."""
-    x = y = 0.0
-    for weight, angle in ((b.bass, BASS_HUE), (b.mid, MID_HUE), (b.treble, TREBLE_HUE)):
-        x += weight * math.cos(math.radians(angle))
-        y += weight * math.sin(math.radians(angle))
-    if math.hypot(x, y) < 1e-6:
-        return None
-    return math.degrees(math.atan2(y, x)) % 360
+def target(
+    b: Bands, min_brightness: float, max_brightness: float, hues: HueRange | None = None
+) -> LightTarget:
+    """Map averaged channels to the one light state of mix mode.
 
-
-def target(b: Bands, min_brightness: float, max_brightness: float) -> LightTarget:
-    """Map averaged bands to a light state."""
+    Brightness follows the volume. The hue is the place along the colour range
+    of the level-weighted mean channel, as for a split-mode light covering all
+    16 channels; silence keeps the current colour (no hue).
+    """
     brightness = min_brightness + b.level * (max_brightness - min_brightness)
-    return LightTarget(brightness=round(brightness), hue=hue(b))
+    if not any(b.channels):
+        return LightTarget(brightness=round(brightness), hue=None)
+    return LightTarget(
+        brightness=round(brightness), hue=spectrum_hue(ALL_CHANNELS, b.channels, hues)
+    )
 
 
 def split_ranges(lights: int) -> list[range]:
@@ -363,7 +334,7 @@ class LightOutput:
             for worker, wanted in zip(self.workers, targets, strict=True):
                 worker.submit(wanted)
             return
-        wanted = target(averaged, self._min, self._max)
+        wanted = target(averaged, self._min, self._max, self._hues)
         for worker in self.workers:
             worker.submit(wanted)
 

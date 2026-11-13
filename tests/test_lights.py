@@ -19,7 +19,6 @@ from custom_components.wled_audio_receiver.lights import (
     LightTarget,
     LightWorker,
     bands,
-    hue,
     hue_distance,
     spectrum_hue,
     split_ranges,
@@ -41,27 +40,11 @@ async def _advance(hass: HomeAssistant, freezer: FrozenDateTimeFactory, seconds:
     await hass.async_block_till_done()
 
 
-def test_band_grouping() -> None:
-    """Channels 0-3, 4-10 and 11-15 make bass, mid and treble."""
+def test_bands() -> None:
+    """A packet's volume and channels are scaled to 0-1."""
     fft = [255] * 4 + [51] * 7 + [102] * 5
     b = bands(decode(make_packet(fft=fft, sample_smth=127.5)))
-    assert b == Bands(
-        level=0.5, bass=1.0, mid=0.2, treble=0.4, channels=tuple(v / 255 for v in fft)
-    )
-
-
-def test_band_grouping_boundaries() -> None:
-    """Channel 3 is bass, 4 is mid, 10 is mid, 11 is treble."""
-
-    def one(channel: int) -> Bands:
-        fft = [0] * 16
-        fft[channel] = 255
-        return bands(decode(make_packet(fft=fft)))
-
-    assert one(3).bass > 0 and one(3).mid == 0
-    assert one(4).mid > 0 and one(4).bass == 0
-    assert one(10).mid > 0 and one(10).treble == 0
-    assert one(11).treble > 0 and one(11).mid == 0
+    assert b == Bands(level=0.5, channels=tuple(v / 255 for v in fft))
 
 
 def test_averager() -> None:
@@ -70,37 +53,49 @@ def test_averager() -> None:
     assert avg.take() is None
     avg.add(decode(make_packet(fft=[0] * 16, sample_smth=0)))
     avg.add(decode(make_packet(fft=[255] * 16, sample_smth=255)))
-    assert avg.take() == Bands(0.5, 0.5, 0.5, 0.5, (0.5,) * 16)
+    assert avg.take() == Bands(0.5, (0.5,) * 16)
     assert avg.take() is None
 
 
+def _one(channel: int, level: float = 1.0) -> tuple[float, ...]:
+    levels = [0.0] * 16
+    levels[channel] = level
+    return tuple(levels)
+
+
 @pytest.mark.parametrize(
-    ("b", "expected"),
+    ("channels", "expected"),
     [
-        (Bands(1, 1, 0, 0), 0.0),
-        (Bands(1, 0, 1, 0), 120.0),
-        (Bands(1, 0, 0, 1), 240.0),
-        (Bands(1, 1, 1, 0), 60.0),
-        (Bands(1, 0, 1, 1), 180.0),
-        (Bands(1, 1, 0, 1), 300.0),
+        (_one(0), 0.0),  # deepest bass: start of the range (red)
+        (_one(15), 270.0),  # highest treble: end of the range (violet)
+        (_one(5), 90.0),
+        ((1.0,) + (0.0,) * 14 + (1.0,), 135.0),  # equal ends: the middle
+        ((0.5,) * 16, 135.0),  # flat spectrum: the middle
+        ((1.0,) * 4 + (0.0,) * 12, 27.0),  # channels 0-3: their mean position, 1.5
     ],
 )
-def test_hue(b: Bands, expected: float) -> None:
-    """Hue is the level-weighted circular mean of red, green and blue."""
-    assert hue(b) == pytest.approx(expected, abs=1e-6)
+def test_mix_hue(channels: tuple[float, ...], expected: float) -> None:
+    """In mix mode the hue follows the level-weighted mean channel along the range."""
+    assert target(Bands(1, channels), 0, 100).hue == pytest.approx(expected)
 
 
-def test_hue_undefined() -> None:
-    """Silence, or equal bands, has no hue."""
-    assert hue(Bands(0, 0, 0, 0)) is None
-    assert hue(Bands(1, 0.5, 0.5, 0.5)) is None
+def test_mix_hue_follows_light_range() -> None:
+    """The light colour range sets mix mode's colours too."""
+    hues = HueRange(240, 0, reverse=True)  # blue down to red
+    assert target(Bands(1, _one(0)), 0, 100, hues).hue == pytest.approx(240)
+    assert target(Bands(1, _one(15)), 0, 100, hues).hue == pytest.approx(0)
+
+
+def test_mix_silence_has_no_hue() -> None:
+    """Silent channels send brightness only, keeping the current colour."""
+    assert target(Bands(0.3, (0.0,) * 16), 0, 100).hue is None
 
 
 def test_target_brightness() -> None:
     """Brightness runs from min at silence to max at full level."""
-    assert target(Bands(0, 1, 0, 0), 10, 90).brightness == 10
-    assert target(Bands(1, 1, 0, 0), 10, 90).brightness == 90
-    assert target(Bands(0.5, 1, 0, 0), 10, 90) == LightTarget(50, 0.0)
+    assert target(Bands(0, _one(0)), 10, 90).brightness == 10
+    assert target(Bands(1, _one(0)), 10, 90).brightness == 90
+    assert target(Bands(0.5, _one(0)), 10, 90) == LightTarget(50, 0.0)
 
 
 @pytest.mark.parametrize(
@@ -167,17 +162,17 @@ def test_spectrum_hue_single_channel_is_fixed() -> None:
 def test_split_targets() -> None:
     """Each light's brightness follows its own channels; its hue is fixed by position."""
     channels = (1.0,) * 4 + (0.0,) * 8 + (0.5,) * 4
-    b = Bands(level=0.2, bass=0, mid=0, treble=0, channels=channels)
+    b = Bands(level=0.2, channels=channels)
     targets = split_targets(b, split_ranges(4), 10, 90)
     assert [t.brightness for t in targets] == [90, 10, 10, 50]
     assert [t.hue for t in targets] == pytest.approx([27, 99, 171, 243])
 
     # Within its range, a light's hue follows its loudest channels.
-    b = Bands(level=0.2, bass=0, mid=0, treble=0, channels=_levels(c0=1.0, c12=1.0))
+    b = Bands(level=0.2, channels=_levels(c0=1.0, c12=1.0))
     low, high = split_targets(b, split_ranges(2), 10, 90)
     assert low.hue == pytest.approx(0) and low.brightness == 20
     assert high.hue == pytest.approx(216) and high.brightness == 20
-    b = Bands(level=0.2, bass=0, mid=0, treble=0, channels=_levels(c0=1.0))
+    b = Bands(level=0.2, channels=_levels(c0=1.0))
     assert split_targets(b, split_ranges(2), 10, 90)[1].hue == pytest.approx(207)  # silent: centre
 
 
@@ -283,7 +278,7 @@ async def test_lights_follow_packets(
     await _advance(hass, freezer, 0.25)
     assert sorted(c.data["entity_id"] for c in calls) == LIGHTS
     assert calls[0].data["brightness_pct"] == 50
-    assert calls[0].data["hs_color"] == (0.0, 100)
+    assert calls[0].data["hs_color"] == (27.0, 100)  # channels 0-3 on the default range
     assert calls[0].data["transition"] == 0.25
 
     # Within the deadband: nothing new.
@@ -299,7 +294,7 @@ async def test_lights_follow_packets(
     await _advance(hass, freezer, 0.25)
     assert len(calls) == 4
     assert calls[-1].data["brightness_pct"] == 100
-    assert calls[-1].data["hs_color"] == (240.0, 100)
+    assert calls[-1].data["hs_color"] == (234.0, 100)  # channels 11-15
 
 
 async def test_lights_stop_when_inactive(
@@ -432,7 +427,7 @@ async def test_split_mode_hue_follows_loudest_channel(
 
 def test_split_targets_custom_range() -> None:
     """Split mode colours follow the configured light colour range."""
-    b = Bands(level=0, bass=0, mid=0, treble=0, channels=_levels(c0=1.0, c15=1.0))
+    b = Bands(level=0, channels=_levels(c0=1.0, c15=1.0))
     low, high = split_targets(b, split_ranges(2), 0, 100, HueRange(300, 60))
     assert low.hue == pytest.approx(300)
     assert high.hue == pytest.approx(60)
@@ -441,7 +436,7 @@ def test_split_targets_custom_range() -> None:
 async def test_split_mode_uses_light_range(
     hass: HomeAssistant, setup_entry, receiver: FakeReceiver, freezer: FrozenDateTimeFactory
 ) -> None:
-    """The light colour range options reach the split-mode lights; Mix ignores them."""
+    """The light colour range options reach the split-mode lights."""
     calls = async_mock_service(hass, "light", "turn_on")
     await setup_entry(
         lights=["light.low", "light.high"],
@@ -470,3 +465,20 @@ async def test_send_to_lights_off(
     assert runtime.gate.active
     assert calls == []
     assert created == []
+
+
+async def test_mix_mode_uses_light_range(
+    hass: HomeAssistant, setup_entry, receiver: FakeReceiver, freezer: FrozenDateTimeFactory
+) -> None:
+    """The light colour range options reach the lights in mix mode."""
+    calls = async_mock_service(hass, "light", "turn_on")
+    await setup_entry(
+        lights=LIGHTS,
+        light_hue_start=[0, 0, 255],
+        light_hue_end=[255, 0, 0],
+        light_hue_reverse=True,
+        update_rate=4.0,
+    )
+    receiver.feed(fft=[255] + [0] * 15, sample_smth=100)
+    await _advance(hass, freezer, 0.25)
+    assert {c.data["hs_color"] for c in calls} == {(240.0, 100)}

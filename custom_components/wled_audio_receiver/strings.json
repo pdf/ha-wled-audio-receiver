@@ -12,9 +12,9 @@
           "send_to_lights": "Send to lights",
           "lights": "Lights",
           "light_mode": "Light mode",
-          "light_hue_start": "Split mode: bass colour",
-          "light_hue_end": "Split mode: treble colour",
-          "light_hue_reverse": "Split mode: go the other way round the colour wheel",
+          "light_hue_start": "Light bass colour",
+          "light_hue_end": "Light treble colour",
+          "light_hue_reverse": "Lights: go the other way round the colour wheel",
           "min_brightness": "Minimum brightness",
           "max_brightness": "Maximum brightness",
           "update_rate": "Light update rate",
@@ -93,9 +93,9 @@
           "send_to_lights": "Send to lights",
           "lights": "Lights",
           "light_mode": "Light mode",
-          "light_hue_start": "Split mode: bass colour",
-          "light_hue_end": "Split mode: treble colour",
-          "light_hue_reverse": "Split mode: go the other way round the colour wheel",
+          "light_hue_start": "Light bass colour",
+          "light_hue_end": "Light treble colour",
+          "light_hue_reverse": "Lights: go the other way round the colour wheel",
           "min_brightness": "Minimum brightness",
           "max_brightness": "Maximum brightness",
           "update_rate": "Light update rate",
@@ -177,7 +177,7 @@
   "selector": {
     "light_mode": {
       "options": {
-        "mix": "Mix: every light follows the whole mix (brightness from volume, colour from the bass, mid and treble balance)",
+        "mix": "Mix: every light follows the whole mix (brightness from volume, colour from where the music sits along the colour range)",
         "split": "Split: the frequency bands are divided among the lights in the order selected, lowest first"
       }
     },
