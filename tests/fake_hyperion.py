@@ -94,11 +94,12 @@ class FakeHyperion:
         self.port = self.server.sockets[0].getsockname()[1]
 
     async def stop(self) -> None:
-        """Close the server and its connections."""
-        self.drop()
+        """Stop listening, close every connection and wait for them to finish."""
         assert self.server is not None
-        self.server.close()
-        await self.server.wait_closed()
+        self.server.close()  # no new connections, e.g. from a reconnecting client
+        self.server.close_clients()
+        self.drop()
+        await asyncio.wait_for(self.server.wait_closed(), 5)
 
     def drop(self) -> None:
         """Close all client connections."""
@@ -164,3 +165,6 @@ class FakeHyperion:
                 writer.write(json.dumps(reply).encode() + b"\n")
         except ConnectionError, asyncio.CancelledError:
             pass
+        finally:
+            # Close our side too when the client hangs up, or wait_closed() waits forever.
+            writer.close()
