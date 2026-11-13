@@ -61,6 +61,7 @@ Everything is set in the UI. The same fields are available later under the integ
 | Media player | none | Drive the outputs only while this media player is `playing`. Empty: react whenever packets arrive. |
 | Lights | none | Lights that follow the music. In split mode, the order you select them in is the order from bass to treble. |
 | Light mode | Mix | Mix: every light follows the whole mix. Split: the frequency bands are divided among the lights. See [Lights](#lights). |
+| Split mode: bass / treble colour, other way round | 0 / 270, off | The colour range for split mode, as hues (0 red, 60 yellow, 120 green, 180 cyan, 240 blue, 300 magenta). See [Colour ranges](#colour-ranges). |
 | Minimum / maximum brightness | 10 % / 100 % | Light brightness at silence and at full volume. |
 | Light update rate | 3 per second | Light commands per second; each uses a transition as long as the interval. |
 | Restore lights afterwards | off | Snapshot the lights when music starts and restore them when it stops. |
@@ -69,6 +70,7 @@ Everything is set in the UI. The same fields are available later under the integ
 | Hyperion host / port | - / 19444 | Hyperion's JSON API, when entered by hand. |
 | Hyperion token | empty | Only if Hyperion requires API authentication: a token created in Hyperion's web interface. |
 | Hyperion layout | Bottom to top | Where the bands appear around the screen. See [Hyperion](#hyperion). |
+| Hyperion bass / treble colour, other way round | 0 / 270, off | The colour range for the Hyperion picture, set separately from the lights. See [Colour ranges](#colour-ranges). |
 | Hyperion priority | 150 | Lower wins. 150 is above screen capture (230-250) and below Home Assistant's Hyperion integration (128), so a colour set by hand still wins. |
 
 With Hyperion turned on, the integration connects to the server when you save, and a second page lists its instances (each LED setup Hyperion drives) so you can choose which show the music. The first running instance is preselected. If Hyperion can't be reached or refuses the token, the form says so; turn Hyperion off to save without it.
@@ -105,7 +107,7 @@ Every light gets the same state:
 The 16 frequency bands (43 Hz to 9.3 kHz) are divided among the lights as evenly as possible, in the order the lights were selected: the first light gets the lowest bands, the last light the highest. With 3 lights, for example, they get bands 0-4 (43-430 Hz), 5-9 (430-1895 Hz) and 10-15 (1895-9259 Hz). With more than 16 lights, neighbouring lights share a band.
 
 - brightness: minimum + level of the light's bands x (maximum - minimum), so each light pulses with its own part of the music;
-- colour: each light has its own range of colours, from red for the lowest bands to violet for the highest (the same colours Hyperion shows), and shifts within that range towards its loudest bands. With 3 lights, the first light (bands 0-4) moves between red and yellow as the loudest part of its bass moves up. A light with a single band keeps that band's colour; a silent light shows the colour at the centre of its range.
+- colour: each light has its own part of the colour range (by default from red for the lowest bands to violet for the highest), and shifts within that range towards its loudest bands. With 3 lights, the first light (bands 0-4) moves between red and yellow as the loudest part of its bass moves up. A light with a single band keeps that band's colour; a silent light shows the colour at the centre of its range.
 
 To change the order, clear the lights in the options and select them again in the order you want.
 
@@ -115,12 +117,22 @@ Changes smaller than 3 brightness points and 10 degrees of hue are not sent. Eac
 
 The integration keeps one connection to Hyperion's JSON API and sends a 32 x 18 pixel image for every packet, with a duration of 500 ms. Hyperion scales the image onto your LED layout, so no LED layout needs to be configured here.
 
-The 16 frequency bands run along the edges of the image, each in its own colour from red (bass) to violet (treble), with its brightness following its level. The layout decides where they go:
+The 16 frequency bands run along the edges of the image, each in its own colour along the Hyperion colour range (by default red for bass to violet for treble), with its brightness following its level. The layout decides where they go:
 
 - **Bottom to top** (default): bass at the bottom centre, rising up both sides to treble at the top centre. Left and right are mirror images.
 - **Sides to top and bottom**: bass at the middle of the left and right sides, rising up to the top corners and along the top to treble at the top centre, and the same downwards to the bottom centre. Mirrored four ways, so each quarter of the frame shows the whole spectrum.
 
 If Home Assistant stops, Hyperion falls back to its capture within half a second. In Hyperion's list of sources it shows as "WLED Audio Receiver". Commands Hyperion rejects are logged as warnings, at most once a minute.
+
+## Colour ranges
+
+Split mode and the Hyperion picture each map the frequency bands onto a colour range, set separately in the options. A range is a path round the colour wheel from the bass colour to the treble colour, both given as hues from 0 to 360 (0 red, 60 yellow, 120 green, 180 cyan, 240 blue, 300 magenta).
+
+- By default the path goes upwards round the wheel: from 300 to 60 runs magenta, red, orange, yellow.
+- "Other way round" makes it go downwards: from 300 to 60 then runs magenta, blue, cyan, green, yellow.
+- The same colour for bass and treble gives one colour throughout; 0 to 360 gives the whole wheel.
+
+The default, 0 to 270 upwards, is red, yellow, green, cyan, blue, violet. Mix mode doesn't use a range: it blends red, green and blue by the balance of bass, mids and treble.
 
 ## Troubleshooting
 

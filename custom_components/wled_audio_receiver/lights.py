@@ -13,8 +13,9 @@ from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.event import async_track_time_interval
 
-from .const import DOMAIN, LIGHT_MODE_SPLIT, SPECTRUM_HUE_END
+from .const import DOMAIN, LIGHT_MODE_SPLIT
 from .receiver import SyncPacket
+from .spectrum import HueRange
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -144,8 +145,10 @@ def split_ranges(lights: int) -> list[range]:
     return [range(c, c + 1) for c in (i * CHANNELS // lights for i in range(lights))]
 
 
-def spectrum_hue(channels: range, levels: tuple[float, ...] = ()) -> float:
-    """Return the hue for a channel range: red for bass up to violet for treble.
+def spectrum_hue(
+    channels: range, levels: tuple[float, ...] = (), hues: HueRange | None = None
+) -> float:
+    """Return the hue for a channel range, from the colour range's bass to treble hue.
 
     With levels, the hue shifts within the range's colours towards the loudest
     channels (the level-weighted mean channel); without levels, or if all are
@@ -157,18 +160,22 @@ def spectrum_hue(channels: range, levels: tuple[float, ...] = ()) -> float:
         position = sum(i * w for i, w in zip(channels, weights, strict=True)) / total
     else:
         position = (channels.start + channels.stop - 1) / 2
-    return SPECTRUM_HUE_END * position / (CHANNELS - 1)
+    return (hues or HueRange()).at(position / (CHANNELS - 1))
 
 
 def split_targets(
-    b: Bands, ranges: list[range], min_brightness: float, max_brightness: float
+    b: Bands,
+    ranges: list[range],
+    min_brightness: float,
+    max_brightness: float,
+    hues: HueRange | None = None,
 ) -> list[LightTarget]:
     """Map averaged channels to one light state per channel range."""
     targets = []
     for channels in ranges:
         level = sum(b.channels[i] for i in channels) / len(channels)
         brightness = min_brightness + level * (max_brightness - min_brightness)
-        hue = spectrum_hue(channels, b.channels)
+        hue = spectrum_hue(channels, b.channels, hues)
         targets.append(LightTarget(brightness=round(brightness), hue=hue))
     return targets
 
@@ -259,6 +266,7 @@ class LightOutput:
         update_rate: float,
         restore: bool,
         mode: str,
+        hues: HueRange | None = None,
     ) -> None:
         """Initialise; nothing is sent until activated."""
         self._hass = hass
@@ -270,6 +278,7 @@ class LightOutput:
         self._scene_id = f"{DOMAIN}_{entry_id.lower()}"
         self.workers = [LightWorker(hass, light, self._interval) for light in lights]
         self._ranges = split_ranges(len(lights)) if mode == LIGHT_MODE_SPLIT and lights else None
+        self._hues = hues or HueRange()
         self._averager = Averager()
         self._active = False
         self._snapshot_taken = False
@@ -350,7 +359,7 @@ class LightOutput:
         if averaged is None:
             return
         if self._ranges is not None:
-            targets = split_targets(averaged, self._ranges, self._min, self._max)
+            targets = split_targets(averaged, self._ranges, self._min, self._max, self._hues)
             for worker, wanted in zip(self.workers, targets, strict=True):
                 worker.submit(wanted)
             return

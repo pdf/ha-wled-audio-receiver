@@ -16,11 +16,17 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from .const import (
     CONF_HYPERION,
     CONF_HYPERION_HOST,
+    CONF_HYPERION_HUE_END,
+    CONF_HYPERION_HUE_REVERSE,
+    CONF_HYPERION_HUE_START,
     CONF_HYPERION_INSTANCES,
     CONF_HYPERION_LAYOUT,
     CONF_HYPERION_PORT,
     CONF_HYPERION_PRIORITY,
     CONF_HYPERION_TOKEN,
+    CONF_LIGHT_HUE_END,
+    CONF_LIGHT_HUE_REVERSE,
+    CONF_LIGHT_HUE_START,
     CONF_LIGHT_MODE,
     CONF_LIGHTS,
     CONF_MAX_BRIGHTNESS,
@@ -47,6 +53,7 @@ from .gate import Gate
 from .hyperion import HyperionOutput
 from .lights import LightOutput
 from .receiver import SyncPacket, SyncProtocol, async_start_receiver
+from .spectrum import HueRange
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -86,6 +93,9 @@ class WledAudioReceiver:
             options.get(CONF_UPDATE_RATE, DEFAULT_UPDATE_RATE),
             options.get(CONF_RESTORE, DEFAULT_RESTORE),
             options.get(CONF_LIGHT_MODE, DEFAULT_LIGHT_MODE),
+            HueRange.from_options(
+                options, CONF_LIGHT_HUE_START, CONF_LIGHT_HUE_END, CONF_LIGHT_HUE_REVERSE
+            ),
         )
         if options.get(CONF_HYPERION, DEFAULT_HYPERION) and options.get(CONF_HYPERION_HOST):
             self.hyperion = HyperionOutput(
@@ -96,6 +106,12 @@ class WledAudioReceiver:
                 options.get(CONF_HYPERION_LAYOUT, DEFAULT_HYPERION_LAYOUT),
                 options.get(CONF_HYPERION_TOKEN) or None,
                 options.get(CONF_HYPERION_INSTANCES) or [],
+                HueRange.from_options(
+                    options,
+                    CONF_HYPERION_HUE_START,
+                    CONF_HYPERION_HUE_END,
+                    CONF_HYPERION_HUE_REVERSE,
+                ),
             )
 
     @property

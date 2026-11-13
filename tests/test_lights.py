@@ -28,6 +28,7 @@ from custom_components.wled_audio_receiver.lights import (
     within_deadband,
 )
 from custom_components.wled_audio_receiver.receiver import decode
+from custom_components.wled_audio_receiver.spectrum import HueRange
 
 from .conftest import FakeReceiver, make_packet
 
@@ -427,3 +428,31 @@ async def test_split_mode_hue_follows_loudest_channel(
     assert len(low) == 2
     assert low[-1]["brightness_pct"] == low[0]["brightness_pct"]
     assert low[-1]["hs_color"] == (126.0, 100)
+
+
+def test_split_targets_custom_range() -> None:
+    """Split mode colours follow the configured light colour range."""
+    b = Bands(level=0, bass=0, mid=0, treble=0, channels=_levels(c0=1.0, c15=1.0))
+    low, high = split_targets(b, split_ranges(2), 0, 100, HueRange(300, 60))
+    assert low.hue == pytest.approx(300)
+    assert high.hue == pytest.approx(60)
+
+
+async def test_split_mode_uses_light_range(
+    hass: HomeAssistant, setup_entry, receiver: FakeReceiver, freezer: FrozenDateTimeFactory
+) -> None:
+    """The light colour range options reach the split-mode lights; Mix ignores them."""
+    calls = async_mock_service(hass, "light", "turn_on")
+    await setup_entry(
+        lights=["light.low", "light.high"],
+        light_mode="split",
+        light_hue_start=240,
+        light_hue_end=0,
+        light_hue_reverse=True,
+        update_rate=4.0,
+    )
+    receiver.feed(fft=[255] + [0] * 14 + [255], sample_smth=10)
+    await _advance(hass, freezer, 0.25)
+    by_light = {c.data["entity_id"]: c.data for c in calls}
+    assert by_light["light.low"]["hs_color"] == (240.0, 100)
+    assert by_light["light.high"]["hs_color"] == (0.0, 100)

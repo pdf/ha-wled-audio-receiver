@@ -17,11 +17,13 @@ from custom_components.wled_audio_receiver.hyperion import (
     HyperionConnectError,
     HyperionInstance,
     async_get_instances,
+    channel_colours,
     clear_command,
     image_command,
     login_command,
     render,
 )
+from custom_components.wled_audio_receiver.spectrum import HueRange
 
 from .conftest import FakeReceiver
 from .fake_hyperion import TOKEN, FakeHyperion, schema_errors
@@ -371,3 +373,31 @@ async def test_without_token_hyperion_rejects(
             break
         await asyncio.sleep(0.01)
     assert "Hyperion rejected image: No Authorization" in caplog.text
+
+
+def test_render_custom_range() -> None:
+    """The Hyperion colour range sets the channel colours."""
+    colours = channel_colours(HueRange(240, 120, reverse=True))  # blue down to green
+    image = render(tuple([255] + [0] * 14 + [255]), "bottom_up", colours)
+    assert _pixel(image, WIDTH // 2, HEIGHT - 1) == (0, 0, 255)  # bass: blue
+    assert _pixel(image, WIDTH // 2, 0) == (0, 255, 0)  # treble: green
+    assert render(tuple([255] * 16)) == render(tuple([255] * 16), "bottom_up", None)
+
+
+async def test_hyperion_range_option_used(
+    hass: HomeAssistant, setup_entry, receiver: FakeReceiver, hyperion: FakeHyperion
+) -> None:
+    """The Hyperion colour range options reach the images sent."""
+    runtime = await setup_entry(
+        hyperion=True,
+        hyperion_host="127.0.0.1",
+        hyperion_port=hyperion.port,
+        hyperion_hue_start=120,
+        hyperion_hue_end=120,
+    )
+    await _wait_connected(runtime)
+    fft = tuple([200] * 16)
+    receiver.feed(fft=list(fft))
+    command = await hyperion.next()
+    expected = render(fft, "bottom_up", channel_colours(HueRange(120, 120)))
+    assert base64.b64decode(command["imagedata"]) == expected

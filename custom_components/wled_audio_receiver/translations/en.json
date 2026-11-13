@@ -11,6 +11,9 @@
           "media_player": "Media player",
           "lights": "Lights",
           "light_mode": "Light mode",
+          "light_hue_start": "Split mode: bass colour",
+          "light_hue_end": "Split mode: treble colour",
+          "light_hue_reverse": "Split mode: go the other way round the colour wheel",
           "min_brightness": "Minimum brightness",
           "max_brightness": "Maximum brightness",
           "update_rate": "Light update rate",
@@ -21,7 +24,10 @@
           "hyperion_port": "Hyperion JSON API port",
           "hyperion_token": "Hyperion token",
           "hyperion_priority": "Hyperion priority",
-          "hyperion_layout": "Hyperion layout"
+          "hyperion_layout": "Hyperion layout",
+          "hyperion_hue_start": "Hyperion bass colour",
+          "hyperion_hue_end": "Hyperion treble colour",
+          "hyperion_hue_reverse": "Hyperion: go the other way round the colour wheel"
         },
         "data_description": {
           "port": "Port the sender sends to. WLED's default is 11988.",
@@ -30,6 +36,9 @@
           "media_player": "Drive the outputs only while this media player is playing. Leave empty to react whenever packets arrive.",
           "lights": "Lights that follow the music.",
           "light_mode": "How the lights share the audio.",
+          "light_hue_start": "Hue (0-360) for the lowest frequencies: 0 red, 60 yellow, 120 green, 180 cyan, 240 blue, 300 magenta.",
+          "light_hue_end": "Hue (0-360) for the highest frequencies. Equal to the bass colour gives one colour; 0 to 360 the whole wheel.",
+          "light_hue_reverse": "Off: from the bass colour upwards (red towards yellow, green, blue). On: downwards (red towards magenta, blue, green).",
           "min_brightness": "Light brightness at silence.",
           "max_brightness": "Light brightness at full volume.",
           "update_rate": "Light commands per second. Each command uses a transition as long as the interval.",
@@ -40,7 +49,10 @@
           "hyperion_port": "Hyperion's JSON server port, 19444 by default.",
           "hyperion_token": "Only if Hyperion requires API authentication: a token created in Hyperion's web interface.",
           "hyperion_priority": "Lower numbers win. 150 is above screen capture (230-250) and below Home Assistant's Hyperion integration (128).",
-          "hyperion_layout": "Where the frequency bands appear around the screen."
+          "hyperion_layout": "Where the frequency bands appear around the screen.",
+          "hyperion_hue_start": "Hue (0-360) for the lowest frequencies in the Hyperion picture.",
+          "hyperion_hue_end": "Hue (0-360) for the highest frequencies in the Hyperion picture.",
+          "hyperion_hue_reverse": "Off: from the bass colour upwards round the wheel. On: downwards."
         }
       },
       "hyperion_instances": {
@@ -77,6 +89,9 @@
           "media_player": "Media player",
           "lights": "Lights",
           "light_mode": "Light mode",
+          "light_hue_start": "Split mode: bass colour",
+          "light_hue_end": "Split mode: treble colour",
+          "light_hue_reverse": "Split mode: go the other way round the colour wheel",
           "min_brightness": "Minimum brightness",
           "max_brightness": "Maximum brightness",
           "update_rate": "Light update rate",
@@ -87,7 +102,10 @@
           "hyperion_port": "Hyperion JSON API port",
           "hyperion_token": "Hyperion token",
           "hyperion_priority": "Hyperion priority",
-          "hyperion_layout": "Hyperion layout"
+          "hyperion_layout": "Hyperion layout",
+          "hyperion_hue_start": "Hyperion bass colour",
+          "hyperion_hue_end": "Hyperion treble colour",
+          "hyperion_hue_reverse": "Hyperion: go the other way round the colour wheel"
         },
         "data_description": {
           "port": "Port the sender sends to. WLED's default is 11988.",
@@ -96,6 +114,9 @@
           "media_player": "Drive the outputs only while this media player is playing. Leave empty to react whenever packets arrive.",
           "lights": "Lights that follow the music.",
           "light_mode": "How the lights share the audio.",
+          "light_hue_start": "Hue (0-360) for the lowest frequencies: 0 red, 60 yellow, 120 green, 180 cyan, 240 blue, 300 magenta.",
+          "light_hue_end": "Hue (0-360) for the highest frequencies. Equal to the bass colour gives one colour; 0 to 360 the whole wheel.",
+          "light_hue_reverse": "Off: from the bass colour upwards (red towards yellow, green, blue). On: downwards (red towards magenta, blue, green).",
           "min_brightness": "Light brightness at silence.",
           "max_brightness": "Light brightness at full volume.",
           "update_rate": "Light commands per second. Each command uses a transition as long as the interval.",
@@ -106,7 +127,10 @@
           "hyperion_port": "Hyperion's JSON server port, 19444 by default.",
           "hyperion_token": "Only if Hyperion requires API authentication: a token created in Hyperion's web interface.",
           "hyperion_priority": "Lower numbers win. 150 is above screen capture (230-250) and below Home Assistant's Hyperion integration (128).",
-          "hyperion_layout": "Where the frequency bands appear around the screen."
+          "hyperion_layout": "Where the frequency bands appear around the screen.",
+          "hyperion_hue_start": "Hue (0-360) for the lowest frequencies in the Hyperion picture.",
+          "hyperion_hue_end": "Hue (0-360) for the highest frequencies in the Hyperion picture.",
+          "hyperion_hue_reverse": "Off: from the bass colour upwards round the wheel. On: downwards."
         }
       },
       "hyperion_instances": {
