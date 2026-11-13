@@ -13,10 +13,12 @@ from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.event import async_track_time_interval
 
-from .const import DOMAIN
+from .const import DOMAIN, LIGHT_MODE_SPLIT, SPECTRUM_HUE_END
 from .receiver import SyncPacket
 
 _LOGGER = logging.getLogger(__name__)
+
+CHANNELS = 16
 
 # fftResult channel ranges for the bands (end exclusive).
 BASS = range(0, 4)  # 43-301 Hz
@@ -42,12 +44,13 @@ ATTR_TRANSITION = "transition"
 
 @dataclass(frozen=True, slots=True)
 class Bands:
-    """Volume and band levels, each 0-1."""
+    """Volume, band and channel levels, each 0-1."""
 
     level: float
     bass: float
     mid: float
     treble: float
+    channels: tuple[float, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,6 +73,7 @@ def bands(packet: SyncPacket) -> Bands:
         bass=_mean(fft, BASS),
         mid=_mean(fft, MID),
         treble=_mean(fft, TREBLE),
+        channels=tuple(v / 255 for v in fft),
     )
 
 
@@ -84,6 +88,7 @@ class Averager:
         """Drop the frames collected so far."""
         self._count = 0
         self._level = self._bass = self._mid = self._treble = 0.0
+        self._channels = [0.0] * CHANNELS
 
     def add(self, packet: SyncPacket) -> None:
         """Add one frame."""
@@ -93,13 +98,21 @@ class Averager:
         self._bass += b.bass
         self._mid += b.mid
         self._treble += b.treble
+        for i, v in enumerate(b.channels):
+            self._channels[i] += v
 
     def take(self) -> Bands | None:
         """Return the average and start a new interval; None if no frames."""
         if self._count == 0:
             return None
         n = self._count
-        result = Bands(self._level / n, self._bass / n, self._mid / n, self._treble / n)
+        result = Bands(
+            self._level / n,
+            self._bass / n,
+            self._mid / n,
+            self._treble / n,
+            tuple(v / n for v in self._channels),
+        )
         self.clear()
         return result
 
@@ -119,6 +132,34 @@ def target(b: Bands, min_brightness: float, max_brightness: float) -> LightTarge
     """Map averaged bands to a light state."""
     brightness = min_brightness + b.level * (max_brightness - min_brightness)
     return LightTarget(brightness=round(brightness), hue=hue(b))
+
+
+def split_ranges(lights: int) -> list[range]:
+    """Divide the 16 channels among the lights, lowest frequencies first.
+
+    With more than 16 lights, neighbouring lights share a channel.
+    """
+    if lights <= CHANNELS:
+        return [range(i * CHANNELS // lights, (i + 1) * CHANNELS // lights) for i in range(lights)]
+    return [range(c, c + 1) for c in (i * CHANNELS // lights for i in range(lights))]
+
+
+def spectrum_hue(channels: range) -> float:
+    """Return the hue for a channel range: red for bass up to violet for treble."""
+    centre = (channels.start + channels.stop - 1) / 2
+    return SPECTRUM_HUE_END * centre / (CHANNELS - 1)
+
+
+def split_targets(
+    b: Bands, ranges: list[range], min_brightness: float, max_brightness: float
+) -> list[LightTarget]:
+    """Map averaged channels to one light state per channel range."""
+    targets = []
+    for channels in ranges:
+        level = sum(b.channels[i] for i in channels) / len(channels)
+        brightness = min_brightness + level * (max_brightness - min_brightness)
+        targets.append(LightTarget(brightness=round(brightness), hue=spectrum_hue(channels)))
+    return targets
 
 
 def hue_distance(a: float, b: float) -> float:
@@ -206,6 +247,7 @@ class LightOutput:
         max_brightness: float,
         update_rate: float,
         restore: bool,
+        mode: str,
     ) -> None:
         """Initialise; nothing is sent until activated."""
         self._hass = hass
@@ -216,6 +258,7 @@ class LightOutput:
         self._lights = list(lights)
         self._scene_id = f"{DOMAIN}_{entry_id.lower()}"
         self.workers = [LightWorker(hass, light, self._interval) for light in lights]
+        self._ranges = split_ranges(len(lights)) if mode == LIGHT_MODE_SPLIT and lights else None
         self._averager = Averager()
         self._active = False
         self._snapshot_taken = False
@@ -294,6 +337,11 @@ class LightOutput:
     def _tick(self, _now: object) -> None:
         averaged = self._averager.take()
         if averaged is None:
+            return
+        if self._ranges is not None:
+            targets = split_targets(averaged, self._ranges, self._min, self._max)
+            for worker, wanted in zip(self.workers, targets, strict=True):
+                worker.submit(wanted)
             return
         wanted = target(averaged, self._min, self._max)
         for worker in self.workers:

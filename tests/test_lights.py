@@ -21,6 +21,9 @@ from custom_components.wled_audio_receiver.lights import (
     bands,
     hue,
     hue_distance,
+    spectrum_hue,
+    split_ranges,
+    split_targets,
     target,
     within_deadband,
 )
@@ -41,7 +44,9 @@ def test_band_grouping() -> None:
     """Channels 0-3, 4-10 and 11-15 make bass, mid and treble."""
     fft = [255] * 4 + [51] * 7 + [102] * 5
     b = bands(decode(make_packet(fft=fft, sample_smth=127.5)))
-    assert b == Bands(level=0.5, bass=1.0, mid=0.2, treble=0.4)
+    assert b == Bands(
+        level=0.5, bass=1.0, mid=0.2, treble=0.4, channels=tuple(v / 255 for v in fft)
+    )
 
 
 def test_band_grouping_boundaries() -> None:
@@ -64,7 +69,7 @@ def test_averager() -> None:
     assert avg.take() is None
     avg.add(decode(make_packet(fft=[0] * 16, sample_smth=0)))
     avg.add(decode(make_packet(fft=[255] * 16, sample_smth=255)))
-    assert avg.take() == Bands(0.5, 0.5, 0.5, 0.5)
+    assert avg.take() == Bands(0.5, 0.5, 0.5, 0.5, (0.5,) * 16)
     assert avg.take() is None
 
 
@@ -95,6 +100,48 @@ def test_target_brightness() -> None:
     assert target(Bands(0, 1, 0, 0), 10, 90).brightness == 10
     assert target(Bands(1, 1, 0, 0), 10, 90).brightness == 90
     assert target(Bands(0.5, 1, 0, 0), 10, 90) == LightTarget(50, 0.0)
+
+
+@pytest.mark.parametrize(
+    ("lights", "expected"),
+    [
+        (1, [range(0, 16)]),
+        (2, [range(0, 8), range(8, 16)]),
+        (3, [range(0, 5), range(5, 10), range(10, 16)]),
+        (5, [range(0, 3), range(3, 6), range(6, 9), range(9, 12), range(12, 16)]),
+        (16, [range(c, c + 1) for c in range(16)]),
+    ],
+)
+def test_split_ranges(lights: int, expected: list[range]) -> None:
+    """Channels are divided into contiguous ranges, lowest first, covering all 16."""
+    assert split_ranges(lights) == expected
+
+
+def test_split_ranges_more_lights_than_channels() -> None:
+    """With more than 16 lights, neighbours share a channel and every channel is used."""
+    ranges = split_ranges(20)
+    assert len(ranges) == 20
+    assert all(len(r) == 1 for r in ranges)
+    starts = [r.start for r in ranges]
+    assert starts == sorted(starts)
+    assert set(starts) == set(range(16))
+
+
+def test_spectrum_hue() -> None:
+    """Hue runs from red at channel 0 to violet at channel 15, by range centre."""
+    assert spectrum_hue(range(0, 1)) == 0
+    assert spectrum_hue(range(15, 16)) == 270
+    assert spectrum_hue(range(0, 16)) == 135
+    assert spectrum_hue(range(0, 8)) == pytest.approx(63)
+
+
+def test_split_targets() -> None:
+    """Each light's brightness follows its own channels; its hue is fixed by position."""
+    channels = (1.0,) * 4 + (0.0,) * 8 + (0.5,) * 4
+    b = Bands(level=0.2, bass=0, mid=0, treble=0, channels=channels)
+    targets = split_targets(b, split_ranges(4), 10, 90)
+    assert [t.brightness for t in targets] == [90, 10, 10, 50]
+    assert [t.hue for t in targets] == pytest.approx([27, 99, 171, 243])
 
 
 def test_hue_distance() -> None:
@@ -292,3 +339,29 @@ async def test_snapshot_and_restore(
     receiver.feed(sample_smth=100)
     await hass.async_block_till_done()
     assert len(created) == 2
+
+
+async def test_split_mode(
+    hass: HomeAssistant, setup_entry, receiver: FakeReceiver, freezer: FrozenDateTimeFactory
+) -> None:
+    """In split mode each light gets its own part of the spectrum, in selection order."""
+    calls = async_mock_service(hass, "light", "turn_on")
+    lights = ["light.low", "light.mid", "light.high"]
+    await setup_entry(
+        lights=lights, light_mode="split", min_brightness=0, max_brightness=100, update_rate=4.0
+    )
+    # Channels 0-4 loud, 5-9 silent, 10-15 at half.
+    receiver.feed(fft=[255] * 5 + [0] * 5 + [128] * 6, sample_smth=10)
+    await _advance(hass, freezer, 0.25)
+    by_light = {c.data["entity_id"]: c.data for c in calls}
+    assert by_light["light.low"]["brightness_pct"] == 100
+    assert by_light["light.mid"]["brightness_pct"] == 0
+    assert by_light["light.high"]["brightness_pct"] == 50
+    assert by_light["light.low"]["hs_color"] == (36.0, 100)
+    assert by_light["light.mid"]["hs_color"] == (126.0, 100)
+    assert by_light["light.high"]["hs_color"] == (225.0, 100)
+
+    # Only the light whose band changed is updated.
+    receiver.feed(fft=[255] * 5 + [255] * 5 + [128] * 6, sample_smth=10)
+    await _advance(hass, freezer, 0.25)
+    assert [c.data["entity_id"] for c in calls[3:]] == ["light.mid"]

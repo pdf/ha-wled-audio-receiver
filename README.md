@@ -10,7 +10,7 @@ This is an unofficial receiver for WLED's audio sync protocol. It is not part of
 
 WLED's audio-reactive usermod analyses sound (volume, peaks and 16 frequency bands) and can share that analysis with other devices as small UDP packets, about 43 per second. This integration listens for those packets and, while music is playing:
 
-- sets the brightness and colour of the lights you choose, a few times per second: brightness follows the volume, colour follows the balance of bass (red), mids (green) and treble (blue);
+- sets the brightness and colour of the lights you choose, a few times per second: either every light follows the whole mix, or each light takes its own part of the spectrum;
 - sends a small image to a Hyperion.NG server, so an ambilight shows the 16 frequency bands around the screen, from bass at the bottom centre to treble at the top centre.
 
 ## Senders
@@ -59,7 +59,8 @@ Everything is set in the UI. The same fields are available later under the integ
 | Join multicast group 239.0.0.1 | on | Receive WLED's default multicast packets. |
 | Sender IP address | empty | Accept packets only from this IPv4 address. Empty accepts any sender. |
 | Media player | none | Drive the outputs only while this media player is `playing`. Empty: react whenever packets arrive. |
-| Lights | none | Lights that follow the music. |
+| Lights | none | Lights that follow the music. In split mode, the order you select them in is the order from bass to treble. |
+| Light mode | Mix | Mix: every light follows the whole mix. Split: the frequency bands are divided among the lights. See [Lights](#lights). |
 | Minimum / maximum brightness | 10 % / 100 % | Light brightness at silence and at full volume. |
 | Light update rate | 3 per second | Light commands per second; each uses a transition as long as the interval. |
 | Restore lights afterwards | off | Snapshot the lights when music starts and restore them when it stops. |
@@ -83,10 +84,23 @@ When one of them ends, pending light commands are cancelled and Hyperion's prior
 
 ## Lights
 
-Each update interval, the received frames are averaged:
+Each update interval, the received frames are averaged and turned into light states according to the light mode.
+
+### Mix
+
+Every light gets the same state:
 
 - brightness: minimum + volume x (maximum - minimum);
 - colour: the hue between red (bass, 43-301 Hz), green (mids, 301-2412 Hz) and blue (treble, 2412-9259 Hz), weighted by the level of each band, at full saturation.
+
+### Split
+
+The 16 frequency bands (43 Hz to 9.3 kHz) are divided among the lights as evenly as possible, in the order the lights were selected: the first light gets the lowest bands, the last light the highest. With 3 lights, for example, they get bands 0-4 (43-430 Hz), 5-9 (430-1895 Hz) and 10-15 (1895-9259 Hz). With more than 16 lights, neighbouring lights share a band.
+
+- brightness: minimum + level of the light's bands x (maximum - minimum), so each light pulses with its own part of the music;
+- colour: fixed per light, from red for the lowest bands to violet for the highest, the same colours Hyperion shows.
+
+To change the order, clear the lights in the options and select them again in the order you want.
 
 Changes smaller than 3 brightness points and 10 degrees of hue are not sent. Each light gets the latest wanted state only: if a light is slow to respond, intermediate states are skipped instead of queued.
 
