@@ -13,6 +13,7 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry
 from custom_components.wled_audio_receiver.const import DOMAIN
 
 from .conftest import FakeReceiver
+from .fake_hyperion import TOKEN, FakeHyperion
 
 DEFAULTS = {
     "port": 11988,
@@ -55,13 +56,28 @@ async def test_user_flow_defaults(hass: HomeAssistant, receiver: FakeReceiver) -
         "media_player": None,
         "lights": [],
         "hyperion_host": "",
+        "hyperion_token": "",
+        "hyperion_instances": [],
     }
     await hass.async_block_till_done()
     assert receiver.args == (11988, True, None)
 
 
-async def test_user_flow_full(hass: HomeAssistant, receiver: FakeReceiver) -> None:
-    """All fields are stored with their types."""
+def _default(result: dict[str, Any], key: str) -> Any:
+    for field in result["data_schema"].schema:
+        if field == key:
+            return field.default()
+    raise KeyError(key)
+
+
+def _has_field(result: dict[str, Any], key: str) -> bool:
+    return any(field == key for field in result["data_schema"].schema)
+
+
+async def test_user_flow_full(
+    hass: HomeAssistant, receiver: FakeReceiver, hyperion: FakeHyperion
+) -> None:
+    """All fields are stored with their types; Hyperion adds an instance step."""
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
     result = await hass.config_entries.flow.async_configure(
         result["flow_id"],
@@ -78,14 +94,24 @@ async def test_user_flow_full(hass: HomeAssistant, receiver: FakeReceiver) -> No
             "update_rate": 2.5,
             "restore": True,
             "hyperion": True,
-            "hyperion_host": "hyperion.local",
-            "hyperion_port": 19445.0,
+            "hyperion_host": "127.0.0.1",
+            "hyperion_port": float(hyperion.port),
             "hyperion_priority": 120.0,
             "hyperion_layout": "four_way",
         },
     )
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "hyperion_instances"
+    assert result["description_placeholders"] == {"host": "127.0.0.1"}
+    assert _default(result, "hyperion_instances") == ["0"]  # the first running instance
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"hyperion_instances": ["1", "0"]}
+    )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     options = result["options"]
+    assert options["hyperion_instances"] == [0, 1]
+    assert options["hyperion_port"] == hyperion.port
+    assert "hyperion_server" not in options
     assert options["port"] == 12000 and isinstance(options["port"], int)
     assert options["sender"] == "192.0.2.5"
     assert options["lights"] == ["light.a", "light.b"]
@@ -171,3 +197,187 @@ async def test_options_flow_errors(
     assert _suggested(result, "sender") == "nope"
     result = await hass.config_entries.options.async_configure(result["flow_id"], DEFAULTS)
     assert result["type"] is FlowResultType.CREATE_ENTRY
+
+
+def _hyperion_entry(
+    hass: HomeAssistant, server: FakeHyperion, token: str | None
+) -> MockConfigEntry:
+    """Add a server of Home Assistant's own Hyperion integration."""
+    data = {"host": "127.0.0.1", "port": server.port}
+    if token:
+        data["token"] = token
+    entry = MockConfigEntry(domain="hyperion", title=f"127.0.0.1:{server.port}", data=data)
+    entry.add_to_hass(hass)
+    return entry
+
+
+async def test_picker_absent_without_hyperion_integration(
+    hass: HomeAssistant, receiver: FakeReceiver
+) -> None:
+    """Without servers in the Hyperion integration, only manual entry is shown."""
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
+    assert not _has_field(result, "hyperion_server")
+    assert _has_field(result, "hyperion_host")
+    assert _has_field(result, "hyperion_token")
+
+
+async def test_picker_copies_server_and_token(
+    hass: HomeAssistant, receiver: FakeReceiver, hyperion: FakeHyperion
+) -> None:
+    """Choosing a server from the Hyperion integration copies its host, port and token."""
+    hyperion.token = TOKEN
+    server = _hyperion_entry(hass, hyperion, TOKEN)
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
+    assert _default(result, "hyperion_server") == server.entry_id
+    options = result["data_schema"].schema
+    picker = next(v for k, v in options.items() if k == "hyperion_server")
+    assert [o["value"] for o in picker.config["options"]] == [server.entry_id, "manual"]
+
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {**DEFAULTS, "hyperion": True, "hyperion_server": server.entry_id}
+    )
+    assert result["step_id"] == "hyperion_instances"
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"hyperion_instances": ["1"]}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    options = result["options"]
+    assert options["hyperion_host"] == "127.0.0.1"
+    assert options["hyperion_port"] == hyperion.port
+    assert options["hyperion_token"] == TOKEN
+    assert options["hyperion_instances"] == [1]
+    assert "hyperion_server" not in options
+
+
+async def test_picker_manual(
+    hass: HomeAssistant, receiver: FakeReceiver, hyperion: FakeHyperion
+) -> None:
+    """Choosing manual uses the host, port and token fields."""
+    _hyperion_entry(hass, hyperion, None)
+    hyperion.token = TOKEN
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            **DEFAULTS,
+            "hyperion": True,
+            "hyperion_server": "manual",
+            "hyperion_host": "127.0.0.1",
+            "hyperion_port": hyperion.port,
+            "hyperion_token": TOKEN,
+        },
+    )
+    assert result["step_id"] == "hyperion_instances"
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"hyperion_instances": ["0"]}
+    )
+    assert result["options"]["hyperion_token"] == TOKEN
+
+
+@pytest.mark.parametrize(
+    ("token_required", "token", "instances", "error"),
+    [
+        (True, None, None, "invalid_auth"),
+        (True, "f" * 36, None, "invalid_auth"),
+        (False, None, [], "no_instances"),
+    ],
+)
+async def test_hyperion_errors(
+    hass: HomeAssistant,
+    receiver: FakeReceiver,
+    hyperion: FakeHyperion,
+    token_required: bool,
+    token: str | None,
+    instances: list | None,
+    error: str,
+) -> None:
+    """Login and instance problems are shown on the form."""
+    if token_required:
+        hyperion.token = TOKEN
+    if instances is not None:
+        hyperion.instances = instances
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
+    user_input = {
+        **DEFAULTS,
+        "hyperion": True,
+        "hyperion_host": "127.0.0.1",
+        "hyperion_port": hyperion.port,
+    }
+    if token:
+        user_input["hyperion_token"] = token
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], user_input)
+    assert result["type"] is FlowResultType.FORM
+    assert result["step_id"] == "user"
+    assert result["errors"] == {"base": error}
+
+
+async def test_hyperion_unreachable(
+    hass: HomeAssistant, receiver: FakeReceiver, socket_enabled: None
+) -> None:
+    """An unreachable Hyperion is reported; turning Hyperion off gets past it."""
+    server = FakeHyperion()
+    await server.start()
+    port = server.port
+    await server.stop()
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
+    user_input = {**DEFAULTS, "hyperion": True, "hyperion_host": "127.0.0.1", "hyperion_port": port}
+    result = await hass.config_entries.flow.async_configure(result["flow_id"], user_input)
+    assert result["errors"] == {"base": "cannot_connect"}
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {**user_input, "hyperion": False}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+
+
+async def test_instance_step(
+    hass: HomeAssistant, receiver: FakeReceiver, hyperion: FakeHyperion
+) -> None:
+    """The default is the first running instance; at least one must be chosen."""
+    hyperion.instances = [(0, "Off", False), (1, "On", True)]
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": SOURCE_USER})
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {
+            **DEFAULTS,
+            "hyperion": True,
+            "hyperion_host": "127.0.0.1",
+            "hyperion_port": hyperion.port,
+        },
+    )
+    assert _default(result, "hyperion_instances") == ["1"]
+    picker = next(v for k, v in result["data_schema"].schema.items() if k == "hyperion_instances")
+    assert [o["label"] for o in picker.config["options"]] == ["Off (0) - not running", "On (1)"]
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"], {"hyperion_instances": []}
+    )
+    assert result["errors"] == {"hyperion_instances": "no_instance_chosen"}
+
+
+async def test_options_flow_hyperion(
+    hass: HomeAssistant, setup_entry, receiver: FakeReceiver, hyperion: FakeHyperion
+) -> None:
+    """The options flow preselects the matching server and the stored instances."""
+    server = _hyperion_entry(hass, hyperion, None)
+    runtime = await setup_entry(
+        **DEFAULTS
+        | {
+            "hyperion": True,
+            "hyperion_host": "127.0.0.1",
+            "hyperion_port": hyperion.port,
+            "hyperion_instances": [1],
+        }
+    )
+    result = await hass.config_entries.options.async_init(runtime.entry.entry_id)
+    assert _suggested(result, "hyperion_server") == server.entry_id
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {**DEFAULTS, "hyperion": True, "hyperion_server": server.entry_id},
+    )
+    assert result["step_id"] == "hyperion_instances"
+    assert _default(result, "hyperion_instances") == ["1"]
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"hyperion_instances": ["0", "1"]}
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    await hass.async_block_till_done()
+    assert runtime.entry.options["hyperion_instances"] == [0, 1]

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import json
 from unittest.mock import patch
 
 from homeassistant.core import HomeAssistant
@@ -14,129 +13,20 @@ from custom_components.wled_audio_receiver.hyperion import (
     CHANNEL_MAPS,
     HEIGHT,
     WIDTH,
+    HyperionAuthError,
+    HyperionConnectError,
+    HyperionInstance,
+    async_get_instances,
     clear_command,
     image_command,
+    login_command,
     render,
 )
 
 from .conftest import FakeReceiver
+from .fake_hyperion import TOKEN, FakeHyperion, schema_errors
 
 SWITCH = "switch.wled_audio_reactive_receiver_music_reactive"
-
-
-# The constraints of Hyperion.NG 2.2's schema-image.json and schema-clear.json
-# (libsrc/api/JSONRPC_schema), checked the way its JSON API validates commands.
-SCHEMAS: dict[str, dict[str, tuple[type, int | None, int | None, bool]]] = {
-    # key: (type, minimum or min length, maximum or max length, required)
-    "image": {
-        "command": (str, None, None, True),
-        "instance": (list, None, None, False),
-        "tan": (int, None, None, False),
-        "priority": (int, 1, 253, True),
-        "origin": (str, 4, 20, False),
-        "duration": (int, None, None, False),
-        "imagewidth": (int, 0, None, False),
-        "imageheight": (int, 0, None, False),
-        "imagedata": (str, None, None, True),
-        "format": (str, None, None, False),
-        "scale": (int, 25, 2000, False),
-        "name": (str, None, None, False),
-    },
-    "clear": {
-        "command": (str, None, None, True),
-        "instance": (list, None, None, False),
-        "tan": (int, None, None, False),
-        "priority": (int, -1, 253, True),
-    },
-}
-
-
-def schema_errors(command: dict) -> list[str]:
-    """Return what Hyperion's schema validation would reject in a command."""
-    schema = SCHEMAS.get(command.get("command"))
-    if schema is None:
-        return ["unknown command"]
-    errors = [f"{key}: not allowed" for key in command if key not in schema]
-    for key, (kind, low, high, required) in schema.items():
-        if key not in command:
-            if required:
-                errors.append(f"{key}: missing")
-            continue
-        value = command[key]
-        if not isinstance(value, kind) or isinstance(value, bool):
-            errors.append(f"{key}: wrong type")
-            continue
-        size = len(value) if kind is str else value
-        if low is not None and size < low:
-            errors.append(f"{key}: below minimum {low}")
-        if high is not None and size > high:
-            errors.append(f"{key}: above maximum {high}")
-    return errors
-
-
-class FakeHyperion:
-    """Accepts JSON API connections and records the commands."""
-
-    def __init__(self) -> None:
-        """Start empty."""
-        self.commands: asyncio.Queue[dict] = asyncio.Queue()
-        self.rejected: list[dict] = []
-        self.reject_all = False
-        self.connections = 0
-        self.writers: list[asyncio.StreamWriter] = []
-        self.server: asyncio.Server | None = None
-        self.port = 0
-
-    async def start(self) -> None:
-        """Listen on a free loopback port."""
-        self.server = await asyncio.start_server(self._client, "127.0.0.1", 0)
-        self.port = self.server.sockets[0].getsockname()[1]
-
-    async def stop(self) -> None:
-        """Close the server and its connections."""
-        self.drop()
-        assert self.server is not None
-        self.server.close()
-        await self.server.wait_closed()
-
-    def drop(self) -> None:
-        """Close all client connections."""
-        for writer in self.writers:
-            writer.close()
-        self.writers.clear()
-
-    async def next(self) -> dict:
-        """Return the next command."""
-        return await asyncio.wait_for(self.commands.get(), 2)
-
-    async def _client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        self.connections += 1
-        self.writers.append(writer)
-        try:
-            while line := await reader.readline():
-                command = json.loads(line)
-                errors = schema_errors(command)
-                if self.reject_all:
-                    errors = errors or ["rejected by test"]
-                reply: dict = {"command": command.get("command"), "success": not errors, "tan": 0}
-                if errors:
-                    self.rejected.append(command)
-                    reply["error"] = "Invalid command"
-                    reply["errorData"] = [{"description": e} for e in errors]
-                else:
-                    await self.commands.put(command)
-                writer.write(json.dumps(reply).encode() + b"\n")
-        except ConnectionError, asyncio.CancelledError:
-            pass
-
-
-@pytest.fixture
-async def hyperion(socket_enabled: None) -> FakeHyperion:
-    """Run a fake Hyperion server."""
-    server = FakeHyperion()
-    await server.start()
-    yield server
-    await server.stop()
 
 
 async def _wait_connected(
@@ -227,6 +117,9 @@ def test_commands_pass_hyperion_schema() -> None:
     assert schema_errors(image_command(tuple([255] * 16), 1)) == []
     assert schema_errors(image_command(tuple([0] * 16), 253)) == []
     assert schema_errors(clear_command(150)) == []
+    assert schema_errors(image_command(tuple([0] * 16), 150, "four_way", [0, 2])) == []
+    assert schema_errors(clear_command(150, [1])) == []
+    assert schema_errors(login_command(TOKEN, tan=1)) == []
     # The validator itself catches what Hyperion rejects.
     assert schema_errors({**clear_command(150), "origin": "x"}) == ["origin: not allowed"]
     assert schema_errors({**image_command(tuple([0] * 16), 150), "origin": "x" * 21}) == [
@@ -396,3 +289,85 @@ async def test_four_way_layout_sent(
     command = await hyperion.next()
     assert base64.b64decode(command["imagedata"]) == render(fft, "four_way")
     assert render(fft, "four_way") != render(fft, "bottom_up")
+
+
+def test_instances_in_commands() -> None:
+    """Instances go in an "instance" array; none means Hyperion's default."""
+    assert image_command(tuple([0] * 16), 150, instances=[0, 2])["instance"] == [0, 2]
+    assert "instance" not in image_command(tuple([0] * 16), 150)
+    assert clear_command(150, [1]) == {"command": "clear", "priority": 150, "instance": [1]}
+    assert "instance" not in clear_command(150, [])
+
+
+async def test_get_instances(hyperion: FakeHyperion) -> None:
+    """The probe lists the server's instances with their names and states."""
+    instances = await async_get_instances("127.0.0.1", hyperion.port, None)
+    assert instances == [
+        HyperionInstance(0, "TV backlight", True),
+        HyperionInstance(1, "Shelf strip", True),
+        HyperionInstance(2, "Spare", False),
+    ]
+
+
+async def test_get_instances_with_token(hyperion: FakeHyperion) -> None:
+    """With a token, the probe logs in first; a missing or wrong token is an auth error."""
+    hyperion.token = TOKEN
+    assert len(await async_get_instances("127.0.0.1", hyperion.port, TOKEN)) == 3
+    assert hyperion.received[0] == login_command(TOKEN, tan=1)
+    with pytest.raises(HyperionAuthError):
+        await async_get_instances("127.0.0.1", hyperion.port, None)
+    with pytest.raises(HyperionAuthError):
+        await async_get_instances("127.0.0.1", hyperion.port, "f" * 36)
+
+
+async def test_get_instances_unreachable(socket_enabled: None) -> None:
+    """A closed port is a connection error."""
+    server = FakeHyperion()
+    await server.start()
+    port = server.port
+    await server.stop()
+    with pytest.raises(HyperionConnectError):
+        await async_get_instances("127.0.0.1", port, None)
+
+
+async def test_token_and_instances_used(
+    hass: HomeAssistant, setup_entry, receiver: FakeReceiver, hyperion: FakeHyperion
+) -> None:
+    """The output logs in before sending and addresses the chosen instances."""
+    hyperion.token = TOKEN
+    runtime = await setup_entry(
+        hyperion=True,
+        hyperion_host="127.0.0.1",
+        hyperion_port=hyperion.port,
+        hyperion_token=TOKEN,
+        hyperion_instances=[0, 1],
+    )
+    await _wait_connected(runtime)
+    receiver.feed()
+    image = await hyperion.next()
+    assert image["instance"] == [0, 1]
+    assert hyperion.received[0]["command"] == "authorize"
+    await hass.services.async_call("switch", "turn_off", {"entity_id": SWITCH}, blocking=True)
+    assert await hyperion.next() == {"command": "clear", "priority": 150, "instance": [0, 1]}
+    assert hyperion.rejected == []
+
+
+async def test_without_token_hyperion_rejects(
+    hass: HomeAssistant,
+    setup_entry,
+    receiver: FakeReceiver,
+    hyperion: FakeHyperion,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A Hyperion that needs a token rejects images sent without one, with a warning."""
+    hyperion.token = TOKEN
+    runtime = await setup_entry(
+        hyperion=True, hyperion_host="127.0.0.1", hyperion_port=hyperion.port
+    )
+    await _wait_connected(runtime)
+    receiver.feed()
+    for _ in range(200):
+        if runtime.hyperion.errors:
+            break
+        await asyncio.sleep(0.01)
+    assert "Hyperion rejected image: No Authorization" in caplog.text

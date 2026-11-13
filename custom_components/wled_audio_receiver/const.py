@@ -29,6 +29,14 @@ CONF_HYPERION_HOST: Final = "hyperion_host"
 CONF_HYPERION_PORT: Final = "hyperion_port"
 CONF_HYPERION_PRIORITY: Final = "hyperion_priority"
 CONF_HYPERION_LAYOUT: Final = "hyperion_layout"
+CONF_HYPERION_TOKEN: Final = "hyperion_token"
+CONF_HYPERION_INSTANCES: Final = "hyperion_instances"
+CONF_HYPERION_SERVER: Final = "hyperion_server"
+
+# Value of the server picker for entering host and port by hand.
+HYPERION_SERVER_MANUAL: Final = "manual"
+# Home Assistant's own Hyperion integration, whose servers are offered.
+HYPERION_CORE_DOMAIN: Final = "hyperion"
 
 DEFAULT_PORT: Final = 11988
 DEFAULT_MULTICAST: Final = True
