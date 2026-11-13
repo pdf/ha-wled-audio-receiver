@@ -92,7 +92,7 @@ Changes smaller than 3 brightness points and 10 degrees of hue are not sent. Eac
 
 ## Hyperion
 
-The integration keeps one connection to Hyperion's JSON API and sends a 16 x 9 pixel image for every packet, with a duration of 500 ms. Hyperion scales the image onto your LED layout, so no layout needs to be configured here. If Home Assistant stops, Hyperion falls back to its capture within half a second.
+The integration keeps one connection to Hyperion's JSON API and sends a 16 x 9 pixel image for every packet, with a duration of 500 ms. Hyperion scales the image onto your LED layout, so no layout needs to be configured here. If Home Assistant stops, Hyperion falls back to its capture within half a second. In Hyperion's list of sources it shows as "WLED Audio Receiver". Commands Hyperion rejects are logged as warnings, at most once a minute.
 
 ## Troubleshooting
 
