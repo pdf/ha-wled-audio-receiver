@@ -65,9 +65,15 @@ Everything is set in the UI. The same fields are available later under the integ
 | Light update rate | 3 per second | Light commands per second; each uses a transition as long as the interval. |
 | Restore lights afterwards | off | Snapshot the lights when music starts and restore them when it stops. |
 | Send to Hyperion | off | Send the frequency bands to Hyperion.NG. |
-| Hyperion host / port | - / 19444 | Hyperion's JSON API. |
+| Hyperion server | first server | Shown when Home Assistant's own Hyperion integration has servers set up: pick one to use its host, port and token, or choose to enter them by hand. |
+| Hyperion host / port | - / 19444 | Hyperion's JSON API, when entered by hand. |
+| Hyperion token | empty | Only if Hyperion requires API authentication: a token created in Hyperion's web interface. |
 | Hyperion layout | Bottom to top | Where the bands appear around the screen. See [Hyperion](#hyperion). |
 | Hyperion priority | 150 | Lower wins. 150 is above screen capture (230-250) and below Home Assistant's Hyperion integration (128), so a colour set by hand still wins. |
+
+With Hyperion turned on, the integration connects to the server when you save, and a second page lists its instances (each LED setup Hyperion drives) so you can choose which show the music. The first running instance is preselected. If Hyperion can't be reached or refuses the token, the form says so; turn Hyperion off to save without it.
+
+A server picked from the Hyperion integration is copied: if you later change that server's address or token there, open "Configure" here and save again.
 
 ### The "Music reactive" switch
 

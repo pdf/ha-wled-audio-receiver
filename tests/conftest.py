@@ -15,6 +15,8 @@ from custom_components.wled_audio_receiver import WledAudioReceiver
 from custom_components.wled_audio_receiver.const import DOMAIN
 from custom_components.wled_audio_receiver.receiver import SyncProtocol
 
+from .fake_hyperion import FakeHyperion
+
 SENDER = ("192.0.2.10", 40000)
 
 
@@ -104,3 +106,12 @@ def setup_entry(hass: HomeAssistant, receiver: FakeReceiver) -> Callable[..., An
         return entry.runtime_data
 
     return _setup
+
+
+@pytest.fixture
+async def hyperion(socket_enabled: None) -> FakeHyperion:
+    """Run a fake Hyperion server."""
+    server = FakeHyperion()
+    await server.start()
+    yield server
+    await server.stop()

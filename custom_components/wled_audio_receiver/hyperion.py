@@ -6,6 +6,7 @@ import asyncio
 import base64
 import colorsys
 import contextlib
+from dataclasses import dataclass
 import json
 import logging
 import time
@@ -30,6 +31,7 @@ HEIGHT = 18
 CHANNELS = 16
 
 CONNECT_TIMEOUT = 5.0
+PROBE_TIMEOUT = 10.0
 BACKOFF_INITIAL = 1.0
 BACKOFF_MAX = 30.0
 
@@ -110,10 +112,16 @@ def render(fft_result: tuple[int, ...], layout: str = DEFAULT_HYPERION_LAYOUT) -
 
 
 def image_command(
-    fft_result: tuple[int, ...], priority: int, layout: str = DEFAULT_HYPERION_LAYOUT
+    fft_result: tuple[int, ...],
+    priority: int,
+    layout: str = DEFAULT_HYPERION_LAYOUT,
+    instances: list[int] | None = None,
 ) -> dict[str, object]:
-    """Build Hyperion's image command for one frame."""
-    return {
+    """Build Hyperion's image command for one frame.
+
+    Without instances, Hyperion uses its first running instance.
+    """
+    command: dict[str, object] = {
         "command": "image",
         "imagewidth": WIDTH,
         "imageheight": HEIGHT,
@@ -122,11 +130,102 @@ def image_command(
         "origin": HYPERION_ORIGIN,
         "duration": HYPERION_DURATION_MS,
     }
+    if instances:
+        command["instance"] = list(instances)
+    return command
 
 
-def clear_command(priority: int) -> dict[str, object]:
+def clear_command(priority: int, instances: list[int] | None = None) -> dict[str, object]:
     """Build Hyperion's clear command."""
-    return {"command": "clear", "priority": priority}
+    command: dict[str, object] = {"command": "clear", "priority": priority}
+    if instances:
+        command["instance"] = list(instances)
+    return command
+
+
+def login_command(token: str, tan: int = 0) -> dict[str, object]:
+    """Build Hyperion's token login command."""
+    return {"command": "authorize", "subcommand": "login", "token": token, "tan": tan}
+
+
+class HyperionError(Exception):
+    """Talking to Hyperion failed."""
+
+
+class HyperionConnectError(HyperionError):
+    """Hyperion could not be reached or did not answer."""
+
+
+class HyperionAuthError(HyperionError):
+    """Hyperion refused the token, or needs one."""
+
+
+@dataclass(frozen=True, slots=True)
+class HyperionInstance:
+    """One Hyperion instance (an LED setup) on a server."""
+
+    id: int
+    name: str
+    running: bool
+
+
+async def _reply_for(reader: asyncio.StreamReader, tan: int) -> dict:
+    """Read replies until the one for this tan."""
+    while line := await reader.readline():
+        try:
+            reply = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(reply, dict) and reply.get("tan") == tan:
+            return reply
+    raise HyperionConnectError("Hyperion closed the connection")
+
+
+def _is_auth_error(reply: dict) -> bool:
+    return "authoriz" in str(reply.get("error", "")).lower()
+
+
+async def async_get_instances(host: str, port: int, token: str | None) -> list[HyperionInstance]:
+    """Log in if a token is given and return the server's instances."""
+    try:
+        reader, writer = await asyncio.wait_for(
+            asyncio.open_connection(host, port), CONNECT_TIMEOUT
+        )
+    except (OSError, TimeoutError) as err:
+        raise HyperionConnectError(str(err)) from err
+
+    def send(command: dict[str, object]) -> None:
+        writer.write(json.dumps(command, separators=(",", ":")).encode() + b"\n")
+
+    try:
+        async with asyncio.timeout(PROBE_TIMEOUT):
+            if token:
+                send(login_command(token, tan=1))
+                reply = await _reply_for(reader, 1)
+                if not reply.get("success"):
+                    raise HyperionAuthError(str(reply.get("error")))
+            send({"command": "serverinfo", "tan": 2})
+            reply = await _reply_for(reader, 2)
+    except TimeoutError as err:
+        raise HyperionConnectError("Hyperion did not answer") from err
+    except (OSError, ValueError) as err:
+        raise HyperionConnectError(str(err)) from err
+    finally:
+        writer.close()
+    if not reply.get("success"):
+        if _is_auth_error(reply):
+            raise HyperionAuthError(str(reply.get("error")))
+        raise HyperionError(str(reply.get("error")))
+    info = reply.get("info") or {}
+    return [
+        HyperionInstance(
+            id=int(item["instance"]),
+            name=str(item.get("friendly_name") or f"Instance {item['instance']}"),
+            running=bool(item.get("running")),
+        )
+        for item in info.get("instance") or []
+        if isinstance(item, dict) and "instance" in item
+    ]
 
 
 class HyperionOutput:
@@ -139,10 +238,14 @@ class HyperionOutput:
         port: int,
         priority: int,
         layout: str = DEFAULT_HYPERION_LAYOUT,
+        token: str | None = None,
+        instances: list[int] | None = None,
     ) -> None:
         """Initialise; call async_start to connect."""
         self._hass = hass
         self._layout = layout
+        self._token = token or None
+        self._instances = list(instances or [])
         self._host = host
         self._port = port
         self._priority = priority
@@ -186,14 +289,16 @@ class HyperionOutput:
             return
         self._active = active
         if not active:
-            self._write(clear_command(self._priority), force=True)
+            self._write(clear_command(self._priority, self._instances), force=True)
 
     @callback
     def packet(self, packet: SyncPacket) -> None:
         """Send one frame while active, unless the previous one has not drained."""
         if not self._active:
             return
-        if not self._write(image_command(packet.fft_result, self._priority, self._layout)):
+        if not self._write(
+            image_command(packet.fft_result, self._priority, self._layout, self._instances)
+        ):
             self.skipped += 1
         else:
             self.sent += 1
@@ -254,6 +359,9 @@ class HyperionOutput:
             _LOGGER.debug("Connected to Hyperion at %s:%s", self._host, self._port)
             backoff = BACKOFF_INITIAL
             self._writer = writer
+            if self._token is not None:
+                # Sent before any image; a refused token shows up as a warning.
+                self._write(login_command(self._token), force=True)
             try:
                 # EOF means the server went away.
                 while line := await reader.readline():

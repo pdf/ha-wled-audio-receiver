@@ -16,9 +16,11 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from .const import (
     CONF_HYPERION,
     CONF_HYPERION_HOST,
+    CONF_HYPERION_INSTANCES,
     CONF_HYPERION_LAYOUT,
     CONF_HYPERION_PORT,
     CONF_HYPERION_PRIORITY,
+    CONF_HYPERION_TOKEN,
     CONF_LIGHT_MODE,
     CONF_LIGHTS,
     CONF_MAX_BRIGHTNESS,
@@ -92,6 +94,8 @@ class WledAudioReceiver:
                 int(options.get(CONF_HYPERION_PORT, DEFAULT_HYPERION_PORT)),
                 int(options.get(CONF_HYPERION_PRIORITY, DEFAULT_HYPERION_PRIORITY)),
                 options.get(CONF_HYPERION_LAYOUT, DEFAULT_HYPERION_LAYOUT),
+                options.get(CONF_HYPERION_TOKEN) or None,
+                options.get(CONF_HYPERION_INSTANCES) or [],
             )
 
     @property

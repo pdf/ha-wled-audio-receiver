@@ -16,8 +16,10 @@
           "update_rate": "Light update rate",
           "restore": "Restore lights afterwards",
           "hyperion": "Send to Hyperion",
+          "hyperion_server": "Hyperion server",
           "hyperion_host": "Hyperion host",
           "hyperion_port": "Hyperion JSON API port",
+          "hyperion_token": "Hyperion token",
           "hyperion_priority": "Hyperion priority",
           "hyperion_layout": "Hyperion layout"
         },
@@ -33,10 +35,22 @@
           "update_rate": "Light commands per second. Each command uses a transition as long as the interval.",
           "restore": "Snapshot the lights when music starts and restore them when it ends. Leave off if automations set the lights after playback.",
           "hyperion": "Send the frequency bands to a Hyperion.NG server as an image.",
+          "hyperion_server": "A server set up in Home Assistant's Hyperion integration, or enter one below.",
           "hyperion_host": "Host name or IP address of the Hyperion.NG server.",
           "hyperion_port": "Hyperion's JSON server port, 19444 by default.",
+          "hyperion_token": "Only if Hyperion requires API authentication: a token created in Hyperion's web interface.",
           "hyperion_priority": "Lower numbers win. 150 is above screen capture (230-250) and below Home Assistant's Hyperion integration (128).",
           "hyperion_layout": "Where the frequency bands appear around the screen."
+        }
+      },
+      "hyperion_instances": {
+        "title": "Hyperion instances",
+        "description": "Choose the Hyperion instances (LED setups) on {host} that show the music.",
+        "data": {
+          "hyperion_instances": "Instances"
+        },
+        "data_description": {
+          "hyperion_instances": "Instances that are not running can't show anything until they are started."
         }
       }
     },
@@ -44,7 +58,12 @@
       "port_in_use": "Another receiver already uses this port.",
       "invalid_sender": "Enter an IPv4 address, or leave the field empty.",
       "min_above_max": "Minimum brightness must not be above maximum brightness.",
-      "hyperion_host_required": "Enter the Hyperion host, or turn off Hyperion."
+      "hyperion_host_required": "Enter the Hyperion host, or turn off Hyperion.",
+      "cannot_connect": "Could not connect to Hyperion. Check the host and port, or turn off Hyperion.",
+      "invalid_auth": "Hyperion refused the token, or requires one.",
+      "hyperion_error": "Hyperion returned an error; see the log.",
+      "no_instances": "Hyperion has no instances.",
+      "no_instance_chosen": "Choose at least one instance."
     }
   },
   "options": {
@@ -63,8 +82,10 @@
           "update_rate": "Light update rate",
           "restore": "Restore lights afterwards",
           "hyperion": "Send to Hyperion",
+          "hyperion_server": "Hyperion server",
           "hyperion_host": "Hyperion host",
           "hyperion_port": "Hyperion JSON API port",
+          "hyperion_token": "Hyperion token",
           "hyperion_priority": "Hyperion priority",
           "hyperion_layout": "Hyperion layout"
         },
@@ -80,10 +101,22 @@
           "update_rate": "Light commands per second. Each command uses a transition as long as the interval.",
           "restore": "Snapshot the lights when music starts and restore them when it ends. Leave off if automations set the lights after playback.",
           "hyperion": "Send the frequency bands to a Hyperion.NG server as an image.",
+          "hyperion_server": "A server set up in Home Assistant's Hyperion integration, or enter one below.",
           "hyperion_host": "Host name or IP address of the Hyperion.NG server.",
           "hyperion_port": "Hyperion's JSON server port, 19444 by default.",
+          "hyperion_token": "Only if Hyperion requires API authentication: a token created in Hyperion's web interface.",
           "hyperion_priority": "Lower numbers win. 150 is above screen capture (230-250) and below Home Assistant's Hyperion integration (128).",
           "hyperion_layout": "Where the frequency bands appear around the screen."
+        }
+      },
+      "hyperion_instances": {
+        "title": "Hyperion instances",
+        "description": "Choose the Hyperion instances (LED setups) on {host} that show the music.",
+        "data": {
+          "hyperion_instances": "Instances"
+        },
+        "data_description": {
+          "hyperion_instances": "Instances that are not running can't show anything until they are started."
         }
       }
     },
@@ -91,7 +124,12 @@
       "port_in_use": "Another receiver already uses this port.",
       "invalid_sender": "Enter an IPv4 address, or leave the field empty.",
       "min_above_max": "Minimum brightness must not be above maximum brightness.",
-      "hyperion_host_required": "Enter the Hyperion host, or turn off Hyperion."
+      "hyperion_host_required": "Enter the Hyperion host, or turn off Hyperion.",
+      "cannot_connect": "Could not connect to Hyperion. Check the host and port, or turn off Hyperion.",
+      "invalid_auth": "Hyperion refused the token, or requires one.",
+      "hyperion_error": "Hyperion returned an error; see the log.",
+      "no_instances": "Hyperion has no instances.",
+      "no_instance_chosen": "Choose at least one instance."
     }
   },
   "entity": {
