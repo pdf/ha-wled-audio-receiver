@@ -62,7 +62,7 @@ Everything is set in the UI. The same fields are available later under the integ
 | Send to lights | on | Turn off to pause the lights without removing them from the list; turn on again to resume with the same lights. |
 | Lights | none | Lights that follow the music. In split mode, the order you select them in is the order from bass to treble. |
 | Light mode | Mix | Mix: every light follows the whole mix. Split: the frequency bands are divided among the lights. See [Lights](#lights). |
-| Split mode: bass / treble colour, other way round | red / violet, off | The colour range for split mode, picked with colour pickers. See [Colour ranges](#colour-ranges). |
+| Light bass / treble colour, other way round | red / violet, off | The colour range for the lights, in both light modes, picked with colour pickers. See [Colour ranges](#colour-ranges). |
 | Minimum / maximum brightness | 10 % / 100 % | Light brightness at silence and at full volume. |
 | Light update rate | 3 per second | Light commands per second; each uses a transition as long as the interval. |
 | Restore lights afterwards | off | Snapshot the lights when music starts and restore them when it stops. |
@@ -101,7 +101,7 @@ Each update interval, the received frames are averaged and turned into light sta
 Every light gets the same state:
 
 - brightness: minimum + volume x (maximum - minimum);
-- colour: the hue between red (bass, 43-301 Hz), green (mids, 301-2412 Hz) and blue (treble, 2412-9259 Hz), weighted by the level of each band, at full saturation.
+- colour: the place along the light colour range where the music sits: the level-weighted average of the 16 frequency bands, so bass-heavy music gets the bass colour, treble-heavy music the treble colour, and a balanced mix the colours in between. During silence the colour is left as it is.
 
 ### Split
 
@@ -127,13 +127,13 @@ If Home Assistant stops, Hyperion falls back to its capture within half a second
 
 ## Colour ranges
 
-Split mode and the Hyperion picture each map the frequency bands onto a colour range, set separately in the options. A range is a path round the colour wheel from the bass colour to the treble colour, both picked with colour pickers. Only each colour's hue counts: a pale or dark colour gives the same result as the fully saturated one (lights always get full saturation), and white, grey and black are refused because they have no hue.
+The lights (in both light modes) and the Hyperion picture each map the frequency bands onto a colour range, set separately in the options. A range is a path round the colour wheel from the bass colour to the treble colour, both picked with colour pickers. Only each colour's hue counts: a pale or dark colour gives the same result as the fully saturated one (lights always get full saturation), and white, grey and black are refused because they have no hue.
 
 - By default the path goes upwards round the wheel (red, yellow, green, cyan, blue, magenta, back to red): from magenta to yellow runs magenta, red, orange, yellow.
 - "Other way round" makes it go downwards: from magenta to yellow then runs magenta, blue, cyan, green, yellow.
 - The same colour for bass and treble goes once round the whole wheel, starting and ending at that colour. For one colour throughout, pick two nearly identical colours.
 
-The default, red to violet upwards, is red, yellow, green, cyan, blue, violet. Mix mode doesn't use a range: it blends red, green and blue by the balance of bass, mids and treble.
+The default, red to violet upwards, is red, yellow, green, cyan, blue, violet.
 
 ## Troubleshooting
 
