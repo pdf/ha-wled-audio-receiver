@@ -14,6 +14,7 @@ from custom_components.wled_audio_receiver.hyperion import (
     CHANNEL_MAP,
     HEIGHT,
     WIDTH,
+    clear_command,
     image_command,
     render,
 )
@@ -23,12 +24,64 @@ from .conftest import FakeReceiver
 SWITCH = "switch.wled_audio_reactive_receiver_music_reactive"
 
 
+# The constraints of Hyperion.NG 2.2's schema-image.json and schema-clear.json
+# (libsrc/api/JSONRPC_schema), checked the way its JSON API validates commands.
+SCHEMAS: dict[str, dict[str, tuple[type, int | None, int | None, bool]]] = {
+    # key: (type, minimum or min length, maximum or max length, required)
+    "image": {
+        "command": (str, None, None, True),
+        "instance": (list, None, None, False),
+        "tan": (int, None, None, False),
+        "priority": (int, 1, 253, True),
+        "origin": (str, 4, 20, False),
+        "duration": (int, None, None, False),
+        "imagewidth": (int, 0, None, False),
+        "imageheight": (int, 0, None, False),
+        "imagedata": (str, None, None, True),
+        "format": (str, None, None, False),
+        "scale": (int, 25, 2000, False),
+        "name": (str, None, None, False),
+    },
+    "clear": {
+        "command": (str, None, None, True),
+        "instance": (list, None, None, False),
+        "tan": (int, None, None, False),
+        "priority": (int, -1, 253, True),
+    },
+}
+
+
+def schema_errors(command: dict) -> list[str]:
+    """Return what Hyperion's schema validation would reject in a command."""
+    schema = SCHEMAS.get(command.get("command"))
+    if schema is None:
+        return ["unknown command"]
+    errors = [f"{key}: not allowed" for key in command if key not in schema]
+    for key, (kind, low, high, required) in schema.items():
+        if key not in command:
+            if required:
+                errors.append(f"{key}: missing")
+            continue
+        value = command[key]
+        if not isinstance(value, kind) or isinstance(value, bool):
+            errors.append(f"{key}: wrong type")
+            continue
+        size = len(value) if kind is str else value
+        if low is not None and size < low:
+            errors.append(f"{key}: below minimum {low}")
+        if high is not None and size > high:
+            errors.append(f"{key}: above maximum {high}")
+    return errors
+
+
 class FakeHyperion:
     """Accepts JSON API connections and records the commands."""
 
     def __init__(self) -> None:
         """Start empty."""
         self.commands: asyncio.Queue[dict] = asyncio.Queue()
+        self.rejected: list[dict] = []
+        self.reject_all = False
         self.connections = 0
         self.writers: list[asyncio.StreamWriter] = []
         self.server: asyncio.Server | None = None
@@ -62,8 +115,17 @@ class FakeHyperion:
         try:
             while line := await reader.readline():
                 command = json.loads(line)
-                await self.commands.put(command)
-                writer.write(b'{"success":true}\n')
+                errors = schema_errors(command)
+                if self.reject_all:
+                    errors = errors or ["rejected by test"]
+                reply: dict = {"command": command.get("command"), "success": not errors, "tan": 0}
+                if errors:
+                    self.rejected.append(command)
+                    reply["error"] = "Invalid command"
+                    reply["errorData"] = [{"description": e} for e in errors]
+                else:
+                    await self.commands.put(command)
+                writer.write(json.dumps(reply).encode() + b"\n")
         except ConnectionError, asyncio.CancelledError:
             pass
 
@@ -120,6 +182,18 @@ def test_render_colours() -> None:
     assert pixel(WIDTH - 1, 4) == (0, 0, 0)
 
 
+def test_commands_pass_hyperion_schema() -> None:
+    """Image and clear commands pass Hyperion's schema validation."""
+    assert schema_errors(image_command(tuple([255] * 16), 1)) == []
+    assert schema_errors(image_command(tuple([0] * 16), 253)) == []
+    assert schema_errors(clear_command(150)) == []
+    # The validator itself catches what Hyperion rejects.
+    assert schema_errors({**clear_command(150), "origin": "x"}) == ["origin: not allowed"]
+    assert schema_errors({**image_command(tuple([0] * 16), 150), "origin": "x" * 21}) == [
+        "origin: above maximum 20"
+    ]
+
+
 def test_image_command() -> None:
     """The image command carries the documented fields."""
     command = image_command(tuple([10] * 16), 150)
@@ -127,7 +201,7 @@ def test_image_command() -> None:
     assert command["imagewidth"] == 16
     assert command["imageheight"] == 9
     assert command["priority"] == 150
-    assert command["origin"] == "WLED Audio-Reactive Receiver"
+    assert command["origin"] == "WLED Audio Receiver"
     assert command["duration"] == 500
     assert len(base64.b64decode(command["imagedata"])) == 16 * 9 * 3
 
@@ -236,3 +310,31 @@ async def test_without_connection_frames_are_skipped(
         )
     receiver.feed()
     assert runtime.hyperion.skipped == 1
+
+
+async def test_rejected_commands_are_logged(
+    hass: HomeAssistant,
+    setup_entry,
+    receiver: FakeReceiver,
+    hyperion: FakeHyperion,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Error replies are logged as warnings, at most once per minute."""
+    hyperion.reject_all = True
+    runtime = await setup_entry(
+        hyperion=True, hyperion_host="127.0.0.1", hyperion_port=hyperion.port
+    )
+    await _wait_connected(runtime)
+    for _ in range(3):
+        receiver.feed()
+        await asyncio.sleep(0.02)
+    for _ in range(200):
+        if runtime.hyperion.errors == 3:
+            break
+        await asyncio.sleep(0.01)
+    assert runtime.hyperion.errors == 3
+    warnings = [r.getMessage() for r in caplog.records if "Hyperion rejected" in r.getMessage()]
+    assert warnings == [
+        "Hyperion rejected image: Invalid command (rejected by test) (1 errors so far)"
+    ]
+    assert runtime.hyperion.connected

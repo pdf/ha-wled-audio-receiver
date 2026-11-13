@@ -8,6 +8,7 @@ import colorsys
 import contextlib
 import json
 import logging
+import time
 
 from homeassistant.core import HomeAssistant, callback
 
@@ -26,6 +27,9 @@ VIOLET = 270.0
 CONNECT_TIMEOUT = 5.0
 BACKOFF_INITIAL = 1.0
 BACKOFF_MAX = 30.0
+
+# Rejected commands are logged at most this often (seconds).
+ERROR_LOG_INTERVAL = 60.0
 
 
 def _border_path() -> list[tuple[int, int]]:
@@ -112,6 +116,8 @@ class HyperionOutput:
         self._active = False
         self.sent = 0
         self.skipped = 0
+        self.errors = 0
+        self._last_error_log: float | None = None
 
     @property
     def connected(self) -> bool:
@@ -166,6 +172,32 @@ class HyperionOutput:
         writer.write(json.dumps(command, separators=(",", ":")).encode() + b"\n")
         return True
 
+    def _reply(self, line: bytes) -> None:
+        """Log failed commands; successful replies are discarded."""
+        try:
+            reply = json.loads(line)
+        except ValueError:
+            return
+        if not isinstance(reply, dict) or reply.get("success", True):
+            return
+        self.errors += 1
+        now = time.monotonic()
+        if self._last_error_log is not None and now - self._last_error_log < ERROR_LOG_INTERVAL:
+            return
+        self._last_error_log = now
+        details = "; ".join(
+            str(d.get("description", d))
+            for d in reply.get("errorData") or []
+            if isinstance(d, dict)
+        )
+        _LOGGER.warning(
+            "Hyperion rejected %s: %s%s (%d errors so far)",
+            reply.get("command", "a command"),
+            reply.get("error", "unknown error"),
+            f" ({details})" if details else "",
+            self.errors,
+        )
+
     async def _connection_loop(self) -> None:
         backoff = BACKOFF_INITIAL
         while True:
@@ -188,10 +220,10 @@ class HyperionOutput:
             backoff = BACKOFF_INITIAL
             self._writer = writer
             try:
-                # Replies are read and discarded; EOF means the server went away.
-                while await reader.read(4096):
-                    pass
-            except OSError as err:
+                # EOF means the server went away.
+                while line := await reader.readline():
+                    self._reply(line)
+            except (OSError, ValueError) as err:
                 _LOGGER.debug("Hyperion connection lost: %s", err)
             finally:
                 self._writer = None

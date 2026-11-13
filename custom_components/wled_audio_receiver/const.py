@@ -43,5 +43,6 @@ MULTICAST_GROUP: Final = "239.0.0.1"
 # A gap longer than this ends the active state (WLED uses about a second).
 PACKET_TIMEOUT: Final = 1.0
 
-HYPERION_ORIGIN: Final = NAME
+# Hyperion limits origin to 4-20 characters (schema-image.json).
+HYPERION_ORIGIN: Final = "WLED Audio Receiver"
 HYPERION_DURATION_MS: Final = 500
