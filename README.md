@@ -4,7 +4,7 @@ A Home Assistant custom integration that receives WLED "audio sync" packets and 
 
 This is an unofficial receiver for WLED's audio sync protocol. It is not part of, or endorsed by, the WLED project, and it is separate from Home Assistant's built-in WLED integration (this one uses the domain `wled_audio_receiver`).
 
-[![Open your Home Assistant instance and open this repository in HACS.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=pdf&repository=ha-wled-audio-receiver&category=integration)
+[![Open your Home Assistant instance and open this repository in the Marketplace.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=pdf&repository=ha-wled-audio-receiver&category=integration)
 
 ## What it does
 
@@ -33,13 +33,21 @@ Home Assistant has to accept UDP on the chosen port. Home Assistant OS does; wit
 
 ## Installation
 
-The integration is installed through HACS as a custom repository.
+The integration is installed as a custom repository: it is not in the default catalog.
+
+On Home Assistant 2026.11 and later, through the built-in Marketplace:
+
+1. Open the link above, or go to Settings > Marketplace, select "Add from link" in the upper-right corner, enter `pdf/ha-wled-audio-receiver` and select "Add". Adding a custom repository asks you to connect Home Assistant to GitHub once.
+2. Open "WLED Audio-Reactive Receiver" in the Marketplace, install it and restart Home Assistant.
+3. Settings > Devices & services > Add integration > WLED Audio-Reactive Receiver.
+
+On Home Assistant 2026.10, through HACS:
 
 1. Open the link above, or in HACS open the three-dot menu > Custom repositories, add `https://github.com/pdf/ha-wled-audio-receiver` with type Integration.
 2. Download "WLED Audio-Reactive Receiver" in HACS and restart Home Assistant.
 3. Settings > Devices & services > Add integration > WLED Audio-Reactive Receiver.
 
-HACS then offers updates like for any other integration.
+The Marketplace (or HACS) then offers updates like for any other integration.
 
 ## Configuration
 

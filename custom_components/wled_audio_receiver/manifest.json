@@ -1,6 +1,7 @@
 {
   "domain": "wled_audio_receiver",
   "name": "WLED Audio-Reactive Receiver",
+  "categories": ["lighting", "media_entertainment.speakers_audio"],
   "codeowners": ["@pdf"],
   "config_flow": true,
   "dependencies": [],
