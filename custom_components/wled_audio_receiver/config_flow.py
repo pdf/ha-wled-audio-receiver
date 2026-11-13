@@ -29,6 +29,7 @@ import voluptuous as vol
 from .const import (
     CONF_HYPERION,
     CONF_HYPERION_HOST,
+    CONF_HYPERION_LAYOUT,
     CONF_HYPERION_PORT,
     CONF_HYPERION_PRIORITY,
     CONF_LIGHT_MODE,
@@ -42,6 +43,7 @@ from .const import (
     CONF_SENDER,
     CONF_UPDATE_RATE,
     DEFAULT_HYPERION,
+    DEFAULT_HYPERION_LAYOUT,
     DEFAULT_HYPERION_PORT,
     DEFAULT_HYPERION_PRIORITY,
     DEFAULT_LIGHT_MODE,
@@ -52,6 +54,7 @@ from .const import (
     DEFAULT_RESTORE,
     DEFAULT_UPDATE_RATE,
     DOMAIN,
+    HYPERION_LAYOUTS,
     LIGHT_MODES,
     NAME,
 )
@@ -97,6 +100,13 @@ def _schema() -> vol.Schema:
             vol.Optional(CONF_HYPERION_HOST): TextSelector(),
             vol.Required(CONF_HYPERION_PORT, default=DEFAULT_HYPERION_PORT): _box(1, 65535),
             vol.Required(CONF_HYPERION_PRIORITY, default=DEFAULT_HYPERION_PRIORITY): _box(1, 253),
+            vol.Required(CONF_HYPERION_LAYOUT, default=DEFAULT_HYPERION_LAYOUT): SelectSelector(
+                SelectSelectorConfig(
+                    options=HYPERION_LAYOUTS,
+                    translation_key=CONF_HYPERION_LAYOUT,
+                    mode=SelectSelectorMode.LIST,
+                )
+            ),
         }
     )
 

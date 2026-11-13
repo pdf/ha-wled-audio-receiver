@@ -12,13 +12,21 @@ import time
 
 from homeassistant.core import HomeAssistant, callback
 
-from .const import DOMAIN, HYPERION_DURATION_MS, HYPERION_ORIGIN, SPECTRUM_HUE_END
+from .const import (
+    DEFAULT_HYPERION_LAYOUT,
+    DOMAIN,
+    HYPERION_DURATION_MS,
+    HYPERION_LAYOUT_FOUR_WAY,
+    HYPERION_LAYOUTS,
+    HYPERION_ORIGIN,
+    SPECTRUM_HUE_END,
+)
 from .receiver import SyncPacket
 
 _LOGGER = logging.getLogger(__name__)
 
-WIDTH = 16
-HEIGHT = 9
+WIDTH = 32
+HEIGHT = 18
 CHANNELS = 16
 
 CONNECT_TIMEOUT = 5.0
@@ -29,24 +37,43 @@ BACKOFF_MAX = 30.0
 ERROR_LOG_INTERVAL = 60.0
 
 
-def _border_path() -> list[tuple[int, int]]:
-    """Return the right half of the border from bottom centre to top centre."""
+def _bottom_up_path() -> tuple[list[tuple[int, int]], bool]:
+    """Return the right half of the border from bottom centre to top centre.
+
+    The path is mirrored left and right.
+    """
     right = WIDTH - 1
     bottom = HEIGHT - 1
     path = [(x, bottom) for x in range(WIDTH // 2, WIDTH)]
     path += [(right, y) for y in range(bottom - 1, -1, -1)]
     path += [(x, 0) for x in range(right - 1, WIDTH // 2 - 1, -1)]
-    return path
+    return path, False
 
 
-def _channel_map() -> list[list[int]]:
-    """Return the fftResult channel for every pixel, indexed [y][x]."""
-    path = _border_path()
+def _four_way_path() -> tuple[list[tuple[int, int]], bool]:
+    """Return the top-right quarter of the border from mid-side to top centre.
+
+    The path is mirrored left and right and top and bottom.
+    """
+    right = WIDTH - 1
+    path = [(right, y) for y in range(HEIGHT // 2 - 1, -1, -1)]
+    path += [(x, 0) for x in range(right - 1, WIDTH // 2 - 1, -1)]
+    return path, True
+
+
+def _channel_map(layout: str) -> list[list[int]]:
+    """Return the fftResult channel for every pixel of a layout, indexed [y][x]."""
+    path, mirror_vertical = (
+        _four_way_path() if layout == HYPERION_LAYOUT_FOUR_WAY else _bottom_up_path()
+    )
     border: dict[tuple[int, int], int] = {}
     for i, (x, y) in enumerate(path):
         channel = i * CHANNELS // len(path)
-        border[(x, y)] = channel
-        border[(WIDTH - 1 - x, y)] = channel
+        mirrored_x = WIDTH - 1 - x
+        border[(x, y)] = border[(mirrored_x, y)] = channel
+        if mirror_vertical:
+            mirrored_y = HEIGHT - 1 - y
+            border[(x, mirrored_y)] = border[(mirrored_x, mirrored_y)] = channel
     grid: list[list[int]] = []
     for y in range(HEIGHT):
         row: list[int] = []
@@ -64,7 +91,7 @@ def _channel_map() -> list[list[int]]:
     return grid
 
 
-CHANNEL_MAP = _channel_map()
+CHANNEL_MAPS = {layout: _channel_map(layout) for layout in HYPERION_LAYOUTS}
 
 CHANNEL_RGB = [
     colorsys.hsv_to_rgb(SPECTRUM_HUE_END * c / (CHANNELS - 1) / 360, 1.0, 1.0)
@@ -72,23 +99,25 @@ CHANNEL_RGB = [
 ]
 
 
-def render(fft_result: tuple[int, ...]) -> bytes:
-    """Render the 16 channels as a WIDTH x HEIGHT RGB image."""
+def render(fft_result: tuple[int, ...], layout: str = DEFAULT_HYPERION_LAYOUT) -> bytes:
+    """Render the 16 channels as a WIDTH x HEIGHT RGB image in a layout."""
     colours = []
     for c in range(CHANNELS):
         r, g, b = CHANNEL_RGB[c]
         v = fft_result[c]
         colours.append(bytes((round(r * v), round(g * v), round(b * v))))
-    return b"".join(colours[c] for row in CHANNEL_MAP for c in row)
+    return b"".join(colours[c] for row in CHANNEL_MAPS[layout] for c in row)
 
 
-def image_command(fft_result: tuple[int, ...], priority: int) -> dict[str, object]:
+def image_command(
+    fft_result: tuple[int, ...], priority: int, layout: str = DEFAULT_HYPERION_LAYOUT
+) -> dict[str, object]:
     """Build Hyperion's image command for one frame."""
     return {
         "command": "image",
         "imagewidth": WIDTH,
         "imageheight": HEIGHT,
-        "imagedata": base64.b64encode(render(fft_result)).decode("ascii"),
+        "imagedata": base64.b64encode(render(fft_result, layout)).decode("ascii"),
         "priority": priority,
         "origin": HYPERION_ORIGIN,
         "duration": HYPERION_DURATION_MS,
@@ -103,9 +132,17 @@ def clear_command(priority: int) -> dict[str, object]:
 class HyperionOutput:
     """Keep one connection to Hyperion's JSON API and send frames while active."""
 
-    def __init__(self, hass: HomeAssistant, host: str, port: int, priority: int) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        host: str,
+        port: int,
+        priority: int,
+        layout: str = DEFAULT_HYPERION_LAYOUT,
+    ) -> None:
         """Initialise; call async_start to connect."""
         self._hass = hass
+        self._layout = layout
         self._host = host
         self._port = port
         self._priority = priority
@@ -156,7 +193,7 @@ class HyperionOutput:
         """Send one frame while active, unless the previous one has not drained."""
         if not self._active:
             return
-        if not self._write(image_command(packet.fft_result, self._priority)):
+        if not self._write(image_command(packet.fft_result, self._priority, self._layout)):
             self.skipped += 1
         else:
             self.sent += 1

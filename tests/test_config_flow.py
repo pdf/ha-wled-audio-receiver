@@ -25,6 +25,7 @@ DEFAULTS = {
     "hyperion": False,
     "hyperion_port": 19444,
     "hyperion_priority": 150,
+    "hyperion_layout": "bottom_up",
 }
 
 
@@ -80,6 +81,7 @@ async def test_user_flow_full(hass: HomeAssistant, receiver: FakeReceiver) -> No
             "hyperion_host": "hyperion.local",
             "hyperion_port": 19445.0,
             "hyperion_priority": 120.0,
+            "hyperion_layout": "four_way",
         },
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -89,6 +91,7 @@ async def test_user_flow_full(hass: HomeAssistant, receiver: FakeReceiver) -> No
     assert options["lights"] == ["light.a", "light.b"]
     assert options["light_mode"] == "split"
     assert options["hyperion_priority"] == 120
+    assert options["hyperion_layout"] == "four_way"
     await hass.async_block_till_done()
     assert receiver.args == (12000, False, "192.0.2.5")
 

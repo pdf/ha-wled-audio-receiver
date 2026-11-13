@@ -11,7 +11,7 @@ from homeassistant.core import HomeAssistant
 import pytest
 
 from custom_components.wled_audio_receiver.hyperion import (
-    CHANNEL_MAP,
+    CHANNEL_MAPS,
     HEIGHT,
     WIDTH,
     clear_command,
@@ -149,37 +149,77 @@ async def _wait_connected(
     raise AssertionError("Hyperion did not connect")
 
 
-def test_channel_map() -> None:
-    """Channel 0 sits at the bottom centre, 15 at the top centre, mirrored."""
-    assert len(CHANNEL_MAP) == HEIGHT
-    assert all(len(row) == WIDTH for row in CHANNEL_MAP)
-    bottom, top = CHANNEL_MAP[HEIGHT - 1], CHANNEL_MAP[0]
-    assert bottom[WIDTH // 2 - 1] == bottom[WIDTH // 2] == 0
-    assert top[WIDTH // 2 - 1] == top[WIDTH // 2] == 15
-    for row in CHANNEL_MAP:
+def _border(grid: list[list[int]]) -> list[int]:
+    """Return every border pixel's channel."""
+    return grid[0] + grid[-1] + [row[0] for row in grid] + [row[-1] for row in grid]
+
+
+def test_image_size() -> None:
+    """Both layouts fill the 32 x 18 image and use every channel on the border."""
+    for grid in CHANNEL_MAPS.values():
+        assert len(grid) == HEIGHT
+        assert all(len(row) == WIDTH for row in grid)
+        assert set(_border(grid)) == set(range(16))
+
+
+def test_bottom_up_layout() -> None:
+    """Channel 0 sits at the bottom centre, 15 at the top centre, mirrored left and right."""
+    grid = CHANNEL_MAPS["bottom_up"]
+    assert grid[HEIGHT - 1][WIDTH // 2 - 1] == grid[HEIGHT - 1][WIDTH // 2] == 0
+    assert grid[0][WIDTH // 2 - 1] == grid[0][WIDTH // 2] == 15
+    for row in grid:
         assert row == row[::-1]
-    # Channels rise along each side from bottom to top.
-    right = [CHANNEL_MAP[y][WIDTH - 1] for y in range(HEIGHT - 1, -1, -1)]
+    # Channels rise along each side from bottom to top, and along the top to the centre.
+    right = [grid[y][WIDTH - 1] for y in range(HEIGHT - 1, -1, -1)]
     assert right == sorted(right)
-    assert set(c for row in CHANNEL_MAP for c in row) == set(range(16))
+    top = grid[0][WIDTH // 2 :]
+    assert top == sorted(top, reverse=True)
     # Interior pixels take the nearest edge's channel.
-    assert CHANNEL_MAP[4][1] == CHANNEL_MAP[4][0]
-    assert CHANNEL_MAP[7][7] == CHANNEL_MAP[8][7]
+    assert grid[8][1] == grid[8][0]
+    assert grid[16][16] == grid[17][16]
+
+
+def test_four_way_layout() -> None:
+    """Channel 0 sits mid-side, 15 at the top and bottom centres, mirrored four ways."""
+    grid = CHANNEL_MAPS["four_way"]
+    middle = HEIGHT // 2
+    for y in (middle - 1, middle):
+        assert grid[y][0] == grid[y][WIDTH - 1] == 0
+    for y in (0, HEIGHT - 1):
+        assert grid[y][WIDTH // 2 - 1] == grid[y][WIDTH // 2] == 15
+    for row in grid:
+        assert row == row[::-1]
+    assert grid == grid[::-1]
+    # From the middle of the right side: up to the corner, then along the top to the centre.
+    path = [grid[y][WIDTH - 1] for y in range(middle - 1, -1, -1)]
+    path += [grid[0][x] for x in range(WIDTH - 2, WIDTH // 2 - 1, -1)]
+    assert path == sorted(path)
+    assert path[0] == 0 and path[-1] == 15
+
+
+def _pixel(image: bytes, x: int, y: int) -> tuple[int, ...]:
+    i = (y * WIDTH + x) * 3
+    return tuple(image[i : i + 3])
 
 
 def test_render_colours() -> None:
     """Hue steps from red (channel 0) to violet (15); brightness is the level."""
     image = render(tuple([255] + [0] * 14 + [128]))
     assert len(image) == WIDTH * HEIGHT * 3
-
-    def pixel(x: int, y: int) -> tuple[int, ...]:
-        i = (y * WIDTH + x) * 3
-        return tuple(image[i : i + 3])
-
-    assert pixel(8, HEIGHT - 1) == (255, 0, 0)
-    r, g, b = pixel(8, 0)
+    assert _pixel(image, WIDTH // 2, HEIGHT - 1) == (255, 0, 0)
+    r, g, b = _pixel(image, WIDTH // 2, 0)
     assert g == 0 and b == 128 and 0 < r < b  # violet at half brightness
-    assert pixel(WIDTH - 1, 4) == (0, 0, 0)
+    assert _pixel(image, WIDTH - 1, HEIGHT // 2) == (0, 0, 0)
+
+
+def test_render_four_way() -> None:
+    """The four-way layout puts bass on the sides and treble at top and bottom."""
+    image = render(tuple([255] + [0] * 14 + [128]), "four_way")
+    for x, y in ((0, HEIGHT // 2), (WIDTH - 1, HEIGHT // 2 - 1)):
+        assert _pixel(image, x, y) == (255, 0, 0)
+    for y in (0, HEIGHT - 1):
+        assert _pixel(image, WIDTH // 2, y)[2] == 128
+    assert _pixel(image, WIDTH // 4, 0) == (0, 0, 0)
 
 
 def test_commands_pass_hyperion_schema() -> None:
@@ -198,12 +238,12 @@ def test_image_command() -> None:
     """The image command carries the documented fields."""
     command = image_command(tuple([10] * 16), 150)
     assert command["command"] == "image"
-    assert command["imagewidth"] == 16
-    assert command["imageheight"] == 9
+    assert command["imagewidth"] == 32
+    assert command["imageheight"] == 18
     assert command["priority"] == 150
     assert command["origin"] == "WLED Audio Receiver"
     assert command["duration"] == 500
-    assert len(base64.b64decode(command["imagedata"])) == 16 * 9 * 3
+    assert len(base64.b64decode(command["imagedata"])) == 32 * 18 * 3
 
 
 async def test_images_and_clear(
@@ -338,3 +378,21 @@ async def test_rejected_commands_are_logged(
         "Hyperion rejected image: Invalid command (rejected by test) (1 errors so far)"
     ]
     assert runtime.hyperion.connected
+
+
+async def test_four_way_layout_sent(
+    hass: HomeAssistant, setup_entry, receiver: FakeReceiver, hyperion: FakeHyperion
+) -> None:
+    """The configured layout is used for the images sent."""
+    runtime = await setup_entry(
+        hyperion=True,
+        hyperion_host="127.0.0.1",
+        hyperion_port=hyperion.port,
+        hyperion_layout="four_way",
+    )
+    await _wait_connected(runtime)
+    fft = tuple([255] + [0] * 15)
+    receiver.feed(fft=list(fft))
+    command = await hyperion.next()
+    assert base64.b64decode(command["imagedata"]) == render(fft, "four_way")
+    assert render(fft, "four_way") != render(fft, "bottom_up")

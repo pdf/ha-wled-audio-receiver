@@ -18,7 +18,8 @@
           "hyperion": "Send to Hyperion",
           "hyperion_host": "Hyperion host",
           "hyperion_port": "Hyperion JSON API port",
-          "hyperion_priority": "Hyperion priority"
+          "hyperion_priority": "Hyperion priority",
+          "hyperion_layout": "Hyperion layout"
         },
         "data_description": {
           "port": "Port the sender sends to. WLED's default is 11988.",
@@ -34,7 +35,8 @@
           "hyperion": "Send the frequency bands to a Hyperion.NG server as an image.",
           "hyperion_host": "Host name or IP address of the Hyperion.NG server.",
           "hyperion_port": "Hyperion's JSON server port, 19444 by default.",
-          "hyperion_priority": "Lower numbers win. 150 is above screen capture (230-250) and below Home Assistant's Hyperion integration (128)."
+          "hyperion_priority": "Lower numbers win. 150 is above screen capture (230-250) and below Home Assistant's Hyperion integration (128).",
+          "hyperion_layout": "Where the frequency bands appear around the screen."
         }
       }
     },
@@ -63,7 +65,8 @@
           "hyperion": "Send to Hyperion",
           "hyperion_host": "Hyperion host",
           "hyperion_port": "Hyperion JSON API port",
-          "hyperion_priority": "Hyperion priority"
+          "hyperion_priority": "Hyperion priority",
+          "hyperion_layout": "Hyperion layout"
         },
         "data_description": {
           "port": "Port the sender sends to. WLED's default is 11988.",
@@ -79,7 +82,8 @@
           "hyperion": "Send the frequency bands to a Hyperion.NG server as an image.",
           "hyperion_host": "Host name or IP address of the Hyperion.NG server.",
           "hyperion_port": "Hyperion's JSON server port, 19444 by default.",
-          "hyperion_priority": "Lower numbers win. 150 is above screen capture (230-250) and below Home Assistant's Hyperion integration (128)."
+          "hyperion_priority": "Lower numbers win. 150 is above screen capture (230-250) and below Home Assistant's Hyperion integration (128).",
+          "hyperion_layout": "Where the frequency bands appear around the screen."
         }
       }
     },
@@ -107,6 +111,12 @@
       "options": {
         "mix": "Mix: every light follows the whole mix (brightness from volume, colour from the bass, mid and treble balance)",
         "split": "Split: the frequency bands are divided among the lights in the order selected, lowest first"
+      }
+    },
+    "hyperion_layout": {
+      "options": {
+        "bottom_up": "Bottom to top: bass at the bottom centre, rising up both sides to treble at the top centre (mirrored left and right)",
+        "four_way": "Sides to top and bottom: bass at the middle of each side, rising to treble at the top and bottom centres (mirrored four ways)"
       }
     }
   }
