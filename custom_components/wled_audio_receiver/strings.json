@@ -1,0 +1,101 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "WLED Audio-Reactive Receiver",
+        "description": "Receive WLED audio sync packets and drive lights and Hyperion with them.",
+        "data": {
+          "port": "UDP port",
+          "multicast": "Join multicast group 239.0.0.1",
+          "sender": "Sender IP address",
+          "media_player": "Media player",
+          "lights": "Lights",
+          "min_brightness": "Minimum brightness",
+          "max_brightness": "Maximum brightness",
+          "update_rate": "Light update rate",
+          "restore": "Restore lights afterwards",
+          "hyperion": "Send to Hyperion",
+          "hyperion_host": "Hyperion host",
+          "hyperion_port": "Hyperion JSON API port",
+          "hyperion_priority": "Hyperion priority"
+        },
+        "data_description": {
+          "port": "Port the sender sends to. WLED's default is 11988.",
+          "multicast": "Receive WLED's default multicast packets. Turn off if the sender sends unicast to this host only.",
+          "sender": "Accept packets only from this IPv4 address. Leave empty to accept any sender.",
+          "media_player": "Drive the outputs only while this media player is playing. Leave empty to react whenever packets arrive.",
+          "lights": "Lights that follow the music.",
+          "min_brightness": "Light brightness at silence.",
+          "max_brightness": "Light brightness at full volume.",
+          "update_rate": "Light commands per second. Each command uses a transition as long as the interval.",
+          "restore": "Snapshot the lights when music starts and restore them when it ends. Leave off if automations set the lights after playback.",
+          "hyperion": "Send the frequency bands to a Hyperion.NG server as an image.",
+          "hyperion_host": "Host name or IP address of the Hyperion.NG server.",
+          "hyperion_port": "Hyperion's JSON server port, 19444 by default.",
+          "hyperion_priority": "Lower numbers win. 150 is above screen capture (230-250) and below Home Assistant's Hyperion integration (128)."
+        }
+      }
+    },
+    "error": {
+      "port_in_use": "Another receiver already uses this port.",
+      "invalid_sender": "Enter an IPv4 address, or leave the field empty.",
+      "min_above_max": "Minimum brightness must not be above maximum brightness.",
+      "hyperion_host_required": "Enter the Hyperion host, or turn off Hyperion."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "WLED Audio-Reactive Receiver",
+        "data": {
+          "port": "UDP port",
+          "multicast": "Join multicast group 239.0.0.1",
+          "sender": "Sender IP address",
+          "media_player": "Media player",
+          "lights": "Lights",
+          "min_brightness": "Minimum brightness",
+          "max_brightness": "Maximum brightness",
+          "update_rate": "Light update rate",
+          "restore": "Restore lights afterwards",
+          "hyperion": "Send to Hyperion",
+          "hyperion_host": "Hyperion host",
+          "hyperion_port": "Hyperion JSON API port",
+          "hyperion_priority": "Hyperion priority"
+        },
+        "data_description": {
+          "port": "Port the sender sends to. WLED's default is 11988.",
+          "multicast": "Receive WLED's default multicast packets. Turn off if the sender sends unicast to this host only.",
+          "sender": "Accept packets only from this IPv4 address. Leave empty to accept any sender.",
+          "media_player": "Drive the outputs only while this media player is playing. Leave empty to react whenever packets arrive.",
+          "lights": "Lights that follow the music.",
+          "min_brightness": "Light brightness at silence.",
+          "max_brightness": "Light brightness at full volume.",
+          "update_rate": "Light commands per second. Each command uses a transition as long as the interval.",
+          "restore": "Snapshot the lights when music starts and restore them when it ends. Leave off if automations set the lights after playback.",
+          "hyperion": "Send the frequency bands to a Hyperion.NG server as an image.",
+          "hyperion_host": "Host name or IP address of the Hyperion.NG server.",
+          "hyperion_port": "Hyperion's JSON server port, 19444 by default.",
+          "hyperion_priority": "Lower numbers win. 150 is above screen capture (230-250) and below Home Assistant's Hyperion integration (128)."
+        }
+      }
+    },
+    "error": {
+      "port_in_use": "Another receiver already uses this port.",
+      "invalid_sender": "Enter an IPv4 address, or leave the field empty.",
+      "min_above_max": "Minimum brightness must not be above maximum brightness.",
+      "hyperion_host_required": "Enter the Hyperion host, or turn off Hyperion."
+    }
+  },
+  "entity": {
+    "switch": {
+      "music_reactive": {
+        "name": "Music reactive",
+        "state_attributes": {
+          "active": {
+            "name": "Active"
+          }
+        }
+      }
+    }
+  }
+}
