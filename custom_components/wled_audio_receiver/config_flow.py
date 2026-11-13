@@ -19,6 +19,9 @@ from homeassistant.helpers.selector import (
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
+    SelectSelector,
+    SelectSelectorConfig,
+    SelectSelectorMode,
     TextSelector,
 )
 import voluptuous as vol
@@ -28,6 +31,7 @@ from .const import (
     CONF_HYPERION_HOST,
     CONF_HYPERION_PORT,
     CONF_HYPERION_PRIORITY,
+    CONF_LIGHT_MODE,
     CONF_LIGHTS,
     CONF_MAX_BRIGHTNESS,
     CONF_MEDIA_PLAYER,
@@ -40,6 +44,7 @@ from .const import (
     DEFAULT_HYPERION,
     DEFAULT_HYPERION_PORT,
     DEFAULT_HYPERION_PRIORITY,
+    DEFAULT_LIGHT_MODE,
     DEFAULT_MAX_BRIGHTNESS,
     DEFAULT_MIN_BRIGHTNESS,
     DEFAULT_MULTICAST,
@@ -47,6 +52,7 @@ from .const import (
     DEFAULT_RESTORE,
     DEFAULT_UPDATE_RATE,
     DOMAIN,
+    LIGHT_MODES,
     NAME,
 )
 
@@ -71,6 +77,13 @@ def _schema() -> vol.Schema:
             ),
             vol.Optional(CONF_LIGHTS): EntitySelector(
                 EntitySelectorConfig(domain="light", multiple=True)
+            ),
+            vol.Required(CONF_LIGHT_MODE, default=DEFAULT_LIGHT_MODE): SelectSelector(
+                SelectSelectorConfig(
+                    options=LIGHT_MODES,
+                    translation_key=CONF_LIGHT_MODE,
+                    mode=SelectSelectorMode.LIST,
+                )
             ),
             vol.Required(CONF_MIN_BRIGHTNESS, default=DEFAULT_MIN_BRIGHTNESS): _box(
                 0, 100, unit="%"

@@ -17,6 +17,7 @@ from .conftest import FakeReceiver
 DEFAULTS = {
     "port": 11988,
     "multicast": True,
+    "light_mode": "mix",
     "min_brightness": 10,
     "max_brightness": 100,
     "update_rate": 3.0,
@@ -70,6 +71,7 @@ async def test_user_flow_full(hass: HomeAssistant, receiver: FakeReceiver) -> No
             "sender": " 192.0.2.5 ",
             "media_player": "media_player.kodi",
             "lights": ["light.a", "light.b"],
+            "light_mode": "split",
             "min_brightness": 20.0,
             "max_brightness": 80.0,
             "update_rate": 2.5,
@@ -85,6 +87,7 @@ async def test_user_flow_full(hass: HomeAssistant, receiver: FakeReceiver) -> No
     assert options["port"] == 12000 and isinstance(options["port"], int)
     assert options["sender"] == "192.0.2.5"
     assert options["lights"] == ["light.a", "light.b"]
+    assert options["light_mode"] == "split"
     assert options["hyperion_priority"] == 120
     await hass.async_block_till_done()
     assert receiver.args == (12000, False, "192.0.2.5")

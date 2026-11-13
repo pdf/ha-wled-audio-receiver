@@ -10,6 +10,7 @@
           "sender": "Sender IP address",
           "media_player": "Media player",
           "lights": "Lights",
+          "light_mode": "Light mode",
           "min_brightness": "Minimum brightness",
           "max_brightness": "Maximum brightness",
           "update_rate": "Light update rate",
@@ -25,6 +26,7 @@
           "sender": "Accept packets only from this IPv4 address. Leave empty to accept any sender.",
           "media_player": "Drive the outputs only while this media player is playing. Leave empty to react whenever packets arrive.",
           "lights": "Lights that follow the music.",
+          "light_mode": "How the lights share the audio.",
           "min_brightness": "Light brightness at silence.",
           "max_brightness": "Light brightness at full volume.",
           "update_rate": "Light commands per second. Each command uses a transition as long as the interval.",
@@ -53,6 +55,7 @@
           "sender": "Sender IP address",
           "media_player": "Media player",
           "lights": "Lights",
+          "light_mode": "Light mode",
           "min_brightness": "Minimum brightness",
           "max_brightness": "Maximum brightness",
           "update_rate": "Light update rate",
@@ -68,6 +71,7 @@
           "sender": "Accept packets only from this IPv4 address. Leave empty to accept any sender.",
           "media_player": "Drive the outputs only while this media player is playing. Leave empty to react whenever packets arrive.",
           "lights": "Lights that follow the music.",
+          "light_mode": "How the lights share the audio.",
           "min_brightness": "Light brightness at silence.",
           "max_brightness": "Light brightness at full volume.",
           "update_rate": "Light commands per second. Each command uses a transition as long as the interval.",
@@ -95,6 +99,14 @@
             "name": "Active"
           }
         }
+      }
+    }
+  },
+  "selector": {
+    "light_mode": {
+      "options": {
+        "mix": "Mix: every light follows the whole mix (brightness from volume, colour from the bass, mid and treble balance)",
+        "split": "Split: the frequency bands are divided among the lights in the order selected, lowest first"
       }
     }
   }

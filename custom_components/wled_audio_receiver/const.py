@@ -17,6 +17,7 @@ CONF_MEDIA_PLAYER: Final = "media_player"
 
 # Lights
 CONF_LIGHTS: Final = "lights"
+CONF_LIGHT_MODE: Final = "light_mode"
 CONF_MIN_BRIGHTNESS: Final = "min_brightness"
 CONF_MAX_BRIGHTNESS: Final = "max_brightness"
 CONF_UPDATE_RATE: Final = "update_rate"
@@ -30,6 +31,11 @@ CONF_HYPERION_PRIORITY: Final = "hyperion_priority"
 
 DEFAULT_PORT: Final = 11988
 DEFAULT_MULTICAST: Final = True
+LIGHT_MODE_MIX: Final = "mix"
+LIGHT_MODE_SPLIT: Final = "split"
+LIGHT_MODES: Final = [LIGHT_MODE_MIX, LIGHT_MODE_SPLIT]
+
+DEFAULT_LIGHT_MODE: Final = LIGHT_MODE_MIX
 DEFAULT_MIN_BRIGHTNESS: Final = 10
 DEFAULT_MAX_BRIGHTNESS: Final = 100
 DEFAULT_UPDATE_RATE: Final = 3.0
@@ -39,6 +45,9 @@ DEFAULT_HYPERION_PORT: Final = 19444
 DEFAULT_HYPERION_PRIORITY: Final = 150
 
 MULTICAST_GROUP: Final = "239.0.0.1"
+
+# Hue of fftResult channel 15 (violet); channel 0 is red (0 degrees).
+SPECTRUM_HUE_END: Final = 270.0
 
 # A gap longer than this ends the active state (WLED uses about a second).
 PACKET_TIMEOUT: Final = 1.0

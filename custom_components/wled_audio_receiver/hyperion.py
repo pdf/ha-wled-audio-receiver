@@ -12,7 +12,7 @@ import time
 
 from homeassistant.core import HomeAssistant, callback
 
-from .const import DOMAIN, HYPERION_DURATION_MS, HYPERION_ORIGIN
+from .const import DOMAIN, HYPERION_DURATION_MS, HYPERION_ORIGIN, SPECTRUM_HUE_END
 from .receiver import SyncPacket
 
 _LOGGER = logging.getLogger(__name__)
@@ -20,9 +20,6 @@ _LOGGER = logging.getLogger(__name__)
 WIDTH = 16
 HEIGHT = 9
 CHANNELS = 16
-
-# Hue of channel 15; channel 0 is red (0 degrees).
-VIOLET = 270.0
 
 CONNECT_TIMEOUT = 5.0
 BACKOFF_INITIAL = 1.0
@@ -70,7 +67,8 @@ def _channel_map() -> list[list[int]]:
 CHANNEL_MAP = _channel_map()
 
 CHANNEL_RGB = [
-    colorsys.hsv_to_rgb(VIOLET * c / (CHANNELS - 1) / 360, 1.0, 1.0) for c in range(CHANNELS)
+    colorsys.hsv_to_rgb(SPECTRUM_HUE_END * c / (CHANNELS - 1) / 360, 1.0, 1.0)
+    for c in range(CHANNELS)
 ]
 
 

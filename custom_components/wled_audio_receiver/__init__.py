@@ -18,6 +18,7 @@ from .const import (
     CONF_HYPERION_HOST,
     CONF_HYPERION_PORT,
     CONF_HYPERION_PRIORITY,
+    CONF_LIGHT_MODE,
     CONF_LIGHTS,
     CONF_MAX_BRIGHTNESS,
     CONF_MEDIA_PLAYER,
@@ -30,6 +31,7 @@ from .const import (
     DEFAULT_HYPERION,
     DEFAULT_HYPERION_PORT,
     DEFAULT_HYPERION_PRIORITY,
+    DEFAULT_LIGHT_MODE,
     DEFAULT_MAX_BRIGHTNESS,
     DEFAULT_MIN_BRIGHTNESS,
     DEFAULT_MULTICAST,
@@ -79,6 +81,7 @@ class WledAudioReceiver:
             options.get(CONF_MAX_BRIGHTNESS, DEFAULT_MAX_BRIGHTNESS),
             options.get(CONF_UPDATE_RATE, DEFAULT_UPDATE_RATE),
             options.get(CONF_RESTORE, DEFAULT_RESTORE),
+            options.get(CONF_LIGHT_MODE, DEFAULT_LIGHT_MODE),
         )
         if options.get(CONF_HYPERION, DEFAULT_HYPERION) and options.get(CONF_HYPERION_HOST):
             self.hyperion = HyperionOutput(
