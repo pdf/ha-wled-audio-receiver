@@ -144,10 +144,20 @@ def split_ranges(lights: int) -> list[range]:
     return [range(c, c + 1) for c in (i * CHANNELS // lights for i in range(lights))]
 
 
-def spectrum_hue(channels: range) -> float:
-    """Return the hue for a channel range: red for bass up to violet for treble."""
-    centre = (channels.start + channels.stop - 1) / 2
-    return SPECTRUM_HUE_END * centre / (CHANNELS - 1)
+def spectrum_hue(channels: range, levels: tuple[float, ...] = ()) -> float:
+    """Return the hue for a channel range: red for bass up to violet for treble.
+
+    With levels, the hue shifts within the range's colours towards the loudest
+    channels (the level-weighted mean channel); without levels, or if all are
+    silent, it is the range's centre.
+    """
+    weights = [levels[i] for i in channels] if levels else []
+    total = sum(weights)
+    if total > 0:
+        position = sum(i * w for i, w in zip(channels, weights, strict=True)) / total
+    else:
+        position = (channels.start + channels.stop - 1) / 2
+    return SPECTRUM_HUE_END * position / (CHANNELS - 1)
 
 
 def split_targets(
@@ -158,7 +168,8 @@ def split_targets(
     for channels in ranges:
         level = sum(b.channels[i] for i in channels) / len(channels)
         brightness = min_brightness + level * (max_brightness - min_brightness)
-        targets.append(LightTarget(brightness=round(brightness), hue=spectrum_hue(channels)))
+        hue = spectrum_hue(channels, b.channels)
+        targets.append(LightTarget(brightness=round(brightness), hue=hue))
     return targets
 
 

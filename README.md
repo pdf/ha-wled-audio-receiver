@@ -99,7 +99,7 @@ Every light gets the same state:
 The 16 frequency bands (43 Hz to 9.3 kHz) are divided among the lights as evenly as possible, in the order the lights were selected: the first light gets the lowest bands, the last light the highest. With 3 lights, for example, they get bands 0-4 (43-430 Hz), 5-9 (430-1895 Hz) and 10-15 (1895-9259 Hz). With more than 16 lights, neighbouring lights share a band.
 
 - brightness: minimum + level of the light's bands x (maximum - minimum), so each light pulses with its own part of the music;
-- colour: fixed per light, from red for the lowest bands to violet for the highest, the same colours Hyperion shows.
+- colour: each light has its own range of colours, from red for the lowest bands to violet for the highest (the same colours Hyperion shows), and shifts within that range towards its loudest bands. With 3 lights, the first light (bands 0-4) moves between red and yellow as the loudest part of its bass moves up. A light with a single band keeps that band's colour; a silent light shows the colour at the centre of its range.
 
 To change the order, clear the lights in the options and select them again in the order you want.
 

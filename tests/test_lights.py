@@ -135,6 +135,34 @@ def test_spectrum_hue() -> None:
     assert spectrum_hue(range(0, 8)) == pytest.approx(63)
 
 
+def _levels(**loud: float) -> tuple[float, ...]:
+    levels = [0.0] * 16
+    for name, value in loud.items():
+        levels[int(name[1:])] = value
+    return tuple(levels)
+
+
+@pytest.mark.parametrize(
+    ("levels", "expected"),
+    [
+        (_levels(c0=1.0), 0.0),  # only the lowest channel: its own colour
+        (_levels(c4=1.0), 72.0),  # only the highest channel of the range
+        (_levels(c0=1.0, c4=1.0), 36.0),  # equal ends: the centre
+        (_levels(c0=0.75, c4=0.25), 18.0),  # weighted towards the louder end
+        (_levels(), 36.0),  # silence: the centre
+        (_levels(c5=1.0), 36.0),  # channels outside the range don't count
+    ],
+)
+def test_spectrum_hue_shifts_within_range(levels: tuple[float, ...], expected: float) -> None:
+    """With levels, the hue moves within the range's colours towards the loudest channels."""
+    assert spectrum_hue(range(0, 5), levels) == pytest.approx(expected)
+
+
+def test_spectrum_hue_single_channel_is_fixed() -> None:
+    """A light with one channel keeps that channel's colour."""
+    assert spectrum_hue(range(7, 8), _levels(c7=0.3)) == pytest.approx(spectrum_hue(range(7, 8)))
+
+
 def test_split_targets() -> None:
     """Each light's brightness follows its own channels; its hue is fixed by position."""
     channels = (1.0,) * 4 + (0.0,) * 8 + (0.5,) * 4
@@ -142,6 +170,14 @@ def test_split_targets() -> None:
     targets = split_targets(b, split_ranges(4), 10, 90)
     assert [t.brightness for t in targets] == [90, 10, 10, 50]
     assert [t.hue for t in targets] == pytest.approx([27, 99, 171, 243])
+
+    # Within its range, a light's hue follows its loudest channels.
+    b = Bands(level=0.2, bass=0, mid=0, treble=0, channels=_levels(c0=1.0, c12=1.0))
+    low, high = split_targets(b, split_ranges(2), 10, 90)
+    assert low.hue == pytest.approx(0) and low.brightness == 20
+    assert high.hue == pytest.approx(216) and high.brightness == 20
+    b = Bands(level=0.2, bass=0, mid=0, treble=0, channels=_levels(c0=1.0))
+    assert split_targets(b, split_ranges(2), 10, 90)[1].hue == pytest.approx(207)  # silent: centre
 
 
 def test_hue_distance() -> None:
@@ -365,3 +401,29 @@ async def test_split_mode(
     receiver.feed(fft=[255] * 5 + [255] * 5 + [128] * 6, sample_smth=10)
     await _advance(hass, freezer, 0.25)
     assert [c.data["entity_id"] for c in calls[3:]] == ["light.mid"]
+
+
+async def test_split_mode_hue_follows_loudest_channel(
+    hass: HomeAssistant, setup_entry, receiver: FakeReceiver, freezer: FrozenDateTimeFactory
+) -> None:
+    """A light covering several channels shifts colour when the loud channel moves."""
+    calls = async_mock_service(hass, "light", "turn_on")
+    await setup_entry(
+        lights=["light.low", "light.high"],
+        light_mode="split",
+        min_brightness=0,
+        max_brightness=100,
+        update_rate=4.0,
+    )
+    receiver.feed(fft=[255] + [0] * 15, sample_smth=10)
+    await _advance(hass, freezer, 0.25)
+    low = [c.data for c in calls if c.data["entity_id"] == "light.low"]
+    assert low[-1]["hs_color"] == (0.0, 100)
+
+    # Same level for the light, but now its top channel is the loud one.
+    receiver.feed(fft=[0] * 7 + [255] + [0] * 8, sample_smth=10)
+    await _advance(hass, freezer, 0.25)
+    low = [c.data for c in calls if c.data["entity_id"] == "light.low"]
+    assert len(low) == 2
+    assert low[-1]["brightness_pct"] == low[0]["brightness_pct"]
+    assert low[-1]["hs_color"] == (126.0, 100)
